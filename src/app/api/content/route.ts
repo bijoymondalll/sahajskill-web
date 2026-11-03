@@ -15,9 +15,6 @@ import { db, initDatabase } from "@/lib/db";
  * local development or demos.
  */
 
-// Route handlers are not cached by default, but be explicit: this is live data.
-export const dynamic = "force-dynamic";
-
 function isTursoConfigured(): boolean {
   const url = process.env.TURSO_DATABASE_URL;
   return (

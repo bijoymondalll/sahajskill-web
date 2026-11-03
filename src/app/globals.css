@@ -1,26 +1,53 @@
 @import "tailwindcss";
 
+/*
+ * SahajSkill is light mode only. There is intentionally no
+ * `prefers-color-scheme: dark` override and no `dark:` variant usage.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  /* Alabaster base */
+  --background: #f8fafc;
+  --surface: #ffffff;
+
+  /* Apple slate text */
+  --foreground: #0f172a;
+  --foreground-muted: #475569;
+
+  /* Sky-indigo accent */
+  --accent: #0284c7;
+  --accent-indigo: #4f46e5;
+
+  /* Gemini glow tints */
+  --glow-sky: #e0f2fe;
+  --glow-blue: #dbeafe;
+  --glow-lavender: #eef2ff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-accent: var(--accent);
+  --color-accent-indigo: var(--accent-indigo);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--surface);
 }
 
 body {
-  background: var(--background);
+  background: linear-gradient(180deg, var(--surface) 0%, var(--background) 100%);
+  background-attachment: fixed;
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #bae6fd;
+  color: var(--foreground);
 }

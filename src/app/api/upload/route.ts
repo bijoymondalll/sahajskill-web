@@ -12,8 +12,6 @@ import { uploadToImgBB } from "@/lib/helpers";
  * (e.g. classes.banner_url, subjects.icon_url, materials.thumbnail_url).
  */
 
-export const dynamic = "force-dynamic";
-
 export async function POST(request: NextRequest) {
   if (!process.env.IMGBB_API_KEY || process.env.IMGBB_API_KEY === "your-imgbb-key") {
     return NextResponse.json(

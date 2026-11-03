@@ -15,8 +15,6 @@ import { db, initDatabase } from "@/lib/db";
  * always responds.
  */
 
-export const dynamic = "force-dynamic";
-
 const DEFAULT_SYSTEM_PROMPT =
   "You are a friendly WBSCTVESD Vocational teacher from West Bengal. Explain concepts clearly in colloquial Bengali and English.";
 

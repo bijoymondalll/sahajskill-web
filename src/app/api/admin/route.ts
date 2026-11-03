@@ -17,8 +17,6 @@ import { sanitizeDriveLink } from "@/lib/helpers";
  * REQ-1.3 / REQ-2.1 / REQ-6.1 — admin-driven, dynamic, force-update control.
  */
 
-export const dynamic = "force-dynamic";
-
 type Entity =
   | "classes"
   | "subjects"
@@ -116,11 +114,11 @@ function normalizeData(
 function pickColumns(entity: Entity, data: Record<string, unknown>) {
   const allowed = WRITABLE_COLUMNS[entity];
   const cols: string[] = [];
-  const values: unknown[] = [];
+  const values: InValue[] = [];
   for (const col of allowed) {
     if (Object.prototype.hasOwnProperty.call(data, col)) {
       cols.push(col);
-      values.push(data[col] ?? null);
+      values.push((data[col] ?? null) as InValue);
     }
   }
   return { cols, values };
