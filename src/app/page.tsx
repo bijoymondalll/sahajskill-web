@@ -291,11 +291,12 @@ const AI_PROMPT_CHIPS = [
   "Math Integration-এর important প্রশ্ন",
 ];
 
-function isAdminSession(user?: { role?: string; email?: string | null } | null): boolean {
-  if (!user) return false;
-  if (user.role === "admin") return true;
-  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL?.trim().toLowerCase();
-  return !!adminEmail && user.email?.trim().toLowerCase() === adminEmail;
+/**
+ * The server sets `role` from NEXT_PUBLIC_ADMIN_EMAIL (see src/lib/auth.ts),
+ * so the client only reads the role and never ships the admin email.
+ */
+function isAdminSession(user?: { role?: string } | null): boolean {
+  return user?.role === "admin";
 }
 
 /** Gemini style floating pill used for inputs and the AI chat bar. */
@@ -442,11 +443,23 @@ export default function HomePage() {
 
   const leaderboardNote = signedIn
     ? "Your XP is synced to your SahajSkill account."
-    : "Your XP is saved on this device. Sign in with Google to sync it.";
+    : "Your XP is saved on this device only. Sign in with Google to save XP from new tests to your account.";
 
+  const syncServerXp = useCallback(() => {
+    fetch("/api/xp", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { xp_points?: unknown } | null) => {
+        if (typeof data?.xp_points === "number") setStudentXp(data.xp_points);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  // Signed-in XP is graded on the server from the submitted answers; the
+  // client-side `points` value is only used for the optimistic display and for
+  // signed-out (on-device) XP.
   const awardXp = useCallback(
-    (points: number) => {
-      const safePoints = Math.min(1000, Math.max(0, Math.round(points)));
+    (test: MockTest, answers: Record<number, number>, points: number) => {
+      const safePoints = Math.max(0, Math.round(points));
       if (safePoints <= 0) return;
       if (!signedIn) {
         setStudentXp((current) => {
@@ -460,19 +473,25 @@ export default function HomePage() {
       fetch("/api/xp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ points: safePoints }),
+        body: JSON.stringify({ test_id: test.id, answers }),
       })
         .then((response) => (response.ok ? response.json() : null))
         .then((data: { xp_points?: unknown } | null) => {
           if (typeof data?.xp_points === "number") {
             setStudentXp(data.xp_points);
             void updateSession();
+          } else {
+            // Rejected (demo test, cooldown, DB down): show the real server XP.
+            syncServerXp();
           }
         })
-        .catch(() => undefined);
+        .catch(() => syncServerXp());
     },
-    [signedIn, updateSession]
+    [signedIn, syncServerXp, updateSession]
   );
+
+  const testRun = useMockTestRun(awardXp);
+  const chat = useAiChat();
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-gradient-to-b from-[#FFFFFF] to-[#F8FAFC] font-sans text-[#0F172A] selection:bg-sky-200">
@@ -574,7 +593,7 @@ export default function HomePage() {
                   />
                   <MockTestEngine
                     tests={tests}
-                    onAwardXp={awardXp}
+                    run={testRun}
                     leaderboard={leaderboard}
                     leaderboardNote={leaderboardNote}
                   />
@@ -583,13 +602,15 @@ export default function HomePage() {
 
               {activeTab === "ai" && (
                 <div className="pt-6">
-                  <AiChat />
+                  <AiChat chat={chat} />
                 </div>
               )}
             </motion.div>
           </AnimatePresence>
         )}
       </div>
+
+      {activeTab === "ai" && !loading && !loadError && <AiInputBar chat={chat} />}
 
       <Dock active={activeTab} onNavigate={navigate} />
 
@@ -1028,7 +1049,12 @@ function MaterialViewer({ subject, materials, viewerMaterial, onOpen, onClose }:
 /*                              Mock test engine                              */
 /* -------------------------------------------------------------------------- */
 
-function MockTestEngine({ tests, onAwardXp, leaderboard, leaderboardNote }: { tests: MockTest[]; onAwardXp: (points: number) => void; leaderboard: LeaderboardUser[]; leaderboardNote: string }) {
+/**
+ * Mock test run state. Lives in HomePage (not in MockTestEngine) so a running
+ * timed test survives switching dock tabs, and the timer keeps counting and
+ * auto-submits even while another tab is open.
+ */
+function useMockTestRun(onAwardXp: (test: MockTest, answers: Record<number, number>, points: number) => void) {
   const [activeTest, setActiveTest] = useState<MockTest | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
@@ -1042,13 +1068,13 @@ function MockTestEngine({ tests, onAwardXp, leaderboard, leaderboardNote }: { te
   );
 
   const finishTest = useCallback(() => {
-    if (submitted) return;
+    if (submitted || !activeTest) return;
     setSubmitted(true);
     if (!xpAwarded) {
-      onAwardXp(score * 10);
+      onAwardXp(activeTest, answers, score * 10);
       setXpAwarded(true);
     }
-  }, [onAwardXp, score, submitted, xpAwarded]);
+  }, [activeTest, answers, onAwardXp, score, submitted, xpAwarded]);
 
   useEffect(() => {
     if (!activeTest || submitted || timeLeft <= 0) return;
@@ -1067,6 +1093,14 @@ function MockTestEngine({ tests, onAwardXp, leaderboard, leaderboardNote }: { te
     setActiveTest(test); setQuestionIndex(0); setAnswers({}); setSubmitted(false); setXpAwarded(false); setTimeLeft(Math.max(1, test.duration_minutes) * 60);
   };
   const reset = () => { setActiveTest(null); setSubmitted(false); setAnswers({}); setQuestionIndex(0); };
+
+  return { activeTest, questionIndex, setQuestionIndex, answers, setAnswers, submitted, timeLeft, questions, score, finishTest, start, reset };
+}
+
+type MockTestRun = ReturnType<typeof useMockTestRun>;
+
+function MockTestEngine({ tests, run, leaderboard, leaderboardNote }: { tests: MockTest[]; run: MockTestRun; leaderboard: LeaderboardUser[]; leaderboardNote: string }) {
+  const { activeTest, questionIndex, setQuestionIndex, answers, setAnswers, submitted, timeLeft, questions, score, finishTest, start, reset } = run;
 
   return (
     <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
@@ -1111,17 +1145,14 @@ function Leaderboard({ users, note, onViewAll }: { users: LeaderboardUser[]; not
 /*                                 AI chat                                    */
 /* -------------------------------------------------------------------------- */
 
-function AiChat() {
+/**
+ * AI chat state. Lives in HomePage so the conversation survives switching
+ * dock tabs, and a reply that arrives while another tab is open is kept.
+ */
+function useAiChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([{ role: "assistant", content: "নমস্কার! আমি SahajSkill AI স্যার। WBSCTVESD Class 11 ও Class 12-এর ETIT, EDCA, Physics, Chemistry বা Math থেকে যেকোনো প্রশ্ন করো। আমি সহজ বাংলায়, পয়েন্ট করে, উদাহরণ আর পরীক্ষার সাজেশন সহ বুঝিয়ে দেব।" }]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Scroll only the message container to the latest message, never the page.
-  useEffect(() => {
-    const container = scrollRef.current;
-    if (container) container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-  }, [messages, sending]);
 
   async function sendMessage(text: string) {
     const message = text.trim();
@@ -1138,10 +1169,23 @@ function AiChat() {
     } finally { setSending(false); }
   }
 
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    void sendMessage(input);
-  }
+  return { messages, input, setInput, sending, sendMessage };
+}
+
+type AiChatState = ReturnType<typeof useAiChat>;
+
+/** Max characters per question; matches MAX_MESSAGE_CHARS in /api/ai. */
+const AI_MESSAGE_MAX_CHARS = 2000;
+
+function AiChat({ chat }: { chat: AiChatState }) {
+  const { messages, sending, sendMessage } = chat;
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Scroll only the message container to the latest message, never the page.
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (container) container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+  }, [messages, sending]);
 
   return (
     <div className="flex min-h-[calc(100vh-9rem)] flex-col justify-between">
@@ -1177,16 +1221,32 @@ function AiChat() {
           {sending && <div className="flex items-center gap-2 text-xs text-slate-500"><LoaderCircle className="h-4 w-4 animate-spin text-indigo-600" /> উত্তর ভাবছি...</div>}
         </div>
       </div>
-
-      <form onSubmit={submit} className="fixed inset-x-0 bottom-24 z-30 px-4 sm:bottom-28">
-        <div className={`${FLOATING_PILL} mx-auto flex max-w-3xl items-center gap-2 py-1.5 pr-1.5 pl-4 transition focus-within:border-sky-300`}>
-          <Sparkles className="h-4 w-4 shrink-0 text-indigo-500" />
-          <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} rows={1} placeholder="SahajSkill AI স্যারকে প্রশ্ন করো... Ask anything" className="max-h-28 min-h-11 flex-1 resize-none bg-transparent px-2 py-3 text-sm text-[#0F172A] outline-none placeholder:text-slate-400" />
-          <button disabled={!input.trim() || sending} aria-label="Send question" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0284C7] to-[#4F46E5] text-white shadow-[0_6px_20px_rgba(79,70,229,0.25)] transition hover:opacity-90 disabled:opacity-30"><Send className="h-4 w-4" /></button>
-        </div>
-        <p className="mt-1.5 text-center text-[10px] text-slate-400">AI can make mistakes. Verify important exam answers with your teacher.</p>
-      </form>
     </div>
+  );
+}
+
+/**
+ * Fixed pill input bar for the Ask AI view. Rendered by HomePage outside the
+ * animated tab wrapper so its `position: fixed` is relative to the viewport,
+ * not to the transformed motion.div during the tab transition.
+ */
+function AiInputBar({ chat }: { chat: AiChatState }) {
+  const { input, setInput, sending, sendMessage } = chat;
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    void sendMessage(input);
+  }
+
+  return (
+    <form onSubmit={submit} className="fixed inset-x-0 bottom-24 z-30 px-4 sm:bottom-28">
+      <div className={`${FLOATING_PILL} mx-auto flex max-w-3xl items-center gap-2 py-1.5 pr-1.5 pl-4 transition focus-within:border-sky-300`}>
+        <Sparkles className="h-4 w-4 shrink-0 text-indigo-500" />
+        <textarea value={input} maxLength={AI_MESSAGE_MAX_CHARS} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} rows={1} placeholder="SahajSkill AI স্যারকে প্রশ্ন করো... Ask anything" className="max-h-28 min-h-11 flex-1 resize-none bg-transparent px-2 py-3 text-sm text-[#0F172A] outline-none placeholder:text-slate-400" />
+        <button disabled={!input.trim() || sending} aria-label="Send question" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0284C7] to-[#4F46E5] text-white shadow-[0_6px_20px_rgba(79,70,229,0.25)] transition hover:opacity-90 disabled:opacity-30"><Send className="h-4 w-4" /></button>
+      </div>
+      <p className="mt-1.5 text-center text-[10px] text-slate-400">AI can make mistakes. Verify important exam answers with your teacher.</p>
+    </form>
   );
 }
 

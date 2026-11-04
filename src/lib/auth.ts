@@ -7,7 +7,9 @@ import GoogleProvider from "next-auth/providers/google";
  * - Google OAuth via GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET.
  * - JWT sessions signed with NEXTAUTH_SECRET.
  * - On sign-in, the user is upserted into the Turso `users` table. The role
- *   is 'admin' when the email matches NEXT_PUBLIC_ADMIN_EMAIL.
+ *   is 'admin' when the email matches NEXT_PUBLIC_ADMIN_EMAIL, otherwise
+ *   'student'. The env var is the single source of truth: changing it demotes
+ *   the previous admin on their next sign-in or session refresh.
  * - The session exposes `user.id`, `user.role` and `user.xp_points`.
  */
 
@@ -50,7 +52,7 @@ async function upsertUser(params: {
           ON CONFLICT(email) DO UPDATE SET
             name = excluded.name,
             avatar_url = excluded.avatar_url,
-            role = CASE WHEN excluded.role = 'admin' THEN 'admin' ELSE users.role END`,
+            role = excluded.role`,
     args: [params.id, params.name, params.email, params.avatarUrl, params.role],
   });
 }
@@ -115,7 +117,6 @@ export const authOptions: NextAuthOptions = {
             const dbUser = await findUserByEmail(email);
             if (dbUser) {
               token.uid = dbUser.id;
-              token.role = dbUser.role === "admin" ? "admin" : token.role;
               token.xp_points = dbUser.xp_points;
             }
           } catch (err) {

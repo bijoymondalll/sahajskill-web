@@ -204,10 +204,9 @@ async function runInit(): Promise<void> {
 
   // Seed the single app_config row (id = 1). Only inserts if missing so admin
   // edits are never overwritten on restart.
-  await db.execute({
-    sql: `INSERT OR IGNORE INTO app_config (id, ai_worker_url) VALUES (1, ?)`,
-    args: [process.env.AI_WORKER_URL ?? null],
-  });
+  // The legacy `ai_worker_url` column stays in the schema for existing
+  // databases, but nothing reads it since /api/ai calls Gemini directly.
+  await db.execute(`INSERT OR IGNORE INTO app_config (id) VALUES (1)`);
 
   // Seed default classes.
   for (const c of SEED_CLASSES) {

@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { db, initDatabase } from "@/lib/db";
 
 /**
  * POST /api/ai  -  AI Doubt Solver (REQ-4.1), powered by Google Gemini.
@@ -13,10 +12,15 @@ import { db, initDatabase } from "@/lib/db";
  * the persona as additional instructions.
  *
  * Body: { message: string, history?: {role: 'user' | 'assistant', content}[] }
- * Response: { reply: string, source: 'gemini' | 'fallback' }
+ * Response: { reply: string, source: 'gemini' | 'fallback' | 'unavailable' }
  *
  * If no API key is set or Gemini is unreachable, a bilingual (Bengali +
  * English) fallback answer is returned so the chat UI always responds.
+ *
+ * Limits: `message` is capped at MAX_MESSAGE_CHARS (413 above that), only the
+ * last MAX_HISTORY_ENTRIES history turns are used, each trimmed to
+ * MAX_HISTORY_ENTRY_CHARS, and every Gemini call times out after
+ * GEMINI_TIMEOUT_MS.
  */
 
 const TEACHER_PERSONA =
@@ -27,6 +31,11 @@ const LEGACY_DEFAULT_PROMPT =
   "You are a friendly WBSCTVESD Vocational teacher from West Bengal. Explain concepts clearly in colloquial Bengali and English.";
 
 const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-1.5-flash"] as const;
+
+const MAX_MESSAGE_CHARS = 2000;
+const MAX_HISTORY_ENTRIES = 8;
+const MAX_HISTORY_ENTRY_CHARS = 4000;
+const GEMINI_TIMEOUT_MS = 20_000;
 
 type GeminiContent = {
   role: "user" | "model";
@@ -55,6 +64,8 @@ async function resolveSystemPrompt(): Promise<string> {
   if (!tursoConfigured) return TEACHER_PERSONA;
 
   try {
+    // Lazy import: `@/lib/db` throws at import time without TURSO_DATABASE_URL.
+    const { db, initDatabase } = await import("@/lib/db");
     await initDatabase();
     const res = await db.execute(
       "SELECT ai_system_prompt FROM app_config WHERE id = 1"
@@ -74,14 +85,15 @@ function toGeminiContents(history: unknown, message: string): GeminiContent[] {
   const contents: GeminiContent[] = [];
 
   if (Array.isArray(history)) {
-    for (const entry of history) {
+    for (const entry of history.slice(-MAX_HISTORY_ENTRIES)) {
       if (!entry || typeof entry !== "object") continue;
       const { role, content } = entry as { role?: unknown; content?: unknown };
       if (typeof content !== "string" || !content.trim()) continue;
+      const text = content.slice(0, MAX_HISTORY_ENTRY_CHARS);
       if (role === "user") {
-        contents.push({ role: "user", parts: [{ text: content }] });
+        contents.push({ role: "user", parts: [{ text }] });
       } else if (role === "assistant" || role === "model") {
-        contents.push({ role: "model", parts: [{ text: content }] });
+        contents.push({ role: "model", parts: [{ text }] });
       }
     }
   }
@@ -108,6 +120,7 @@ async function callGemini(
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: systemPrompt }] },
         contents,
@@ -140,7 +153,17 @@ async function callGemini(
   }
 }
 
-/** Bilingual fallback answer used when Gemini is not available. */
+/** Bilingual answer used when a key is set but every Gemini call failed. */
+function unavailableAnswer(): string {
+  return [
+    "⚠ **SahajSkill AI স্যার এখন সাময়িকভাবে উত্তর দিতে পারছে না।**",
+    "",
+    "AI সার্ভার থেকে উত্তর আসেনি। কিছুক্ষণ পরে আবার চেষ্টা করো। " +
+      "The AI teacher is temporarily unavailable. Please try again in a moment.",
+  ].join("\n");
+}
+
+/** Bilingual fallback answer used when no Gemini API key is configured. */
 function fallbackAnswer(message: string): string {
   const q = message.trim();
   return [
@@ -182,6 +205,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (message.length > MAX_MESSAGE_CHARS) {
+    return NextResponse.json(
+      { error: `\`message\` must be at most ${MAX_MESSAGE_CHARS} characters` },
+      { status: 413 }
+    );
+  }
+
   const apiKey = (
     process.env.GEMINI_API_KEY ??
     process.env.GOOGLE_GENERATIVE_AI_API_KEY ??
@@ -206,8 +236,8 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({
-    reply: fallbackAnswer(message),
-    source: "fallback" as const,
+    reply: unavailableAnswer(),
+    source: "unavailable" as const,
     error: "Gemini API call failed",
   });
 }

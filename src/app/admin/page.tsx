@@ -113,7 +113,6 @@ type AppConfig = {
   update_url: string;
   update_message: string;
   notice_banner: string;
-  ai_worker_url?: string | null;
   ai_system_prompt?: string | null;
 };
 
@@ -135,7 +134,6 @@ type SettingsDraft = {
   update_url: string;
   update_message: string;
   notice_banner: string;
-  ai_worker_url: string;
   ai_system_prompt: string;
 };
 
@@ -146,7 +144,6 @@ const EMPTY_SETTINGS: SettingsDraft = {
   update_url: "https://play.google.com",
   update_message: "নতুন ফিচার ও সাজেশন পেতে অ্যাপটি আপডেট কর!",
   notice_banner: "WBSCTVESD Class 12 Semester Suggestion Live Now!",
-  ai_worker_url: "",
   ai_system_prompt:
     "You are a friendly WBSCTVESD Vocational teacher from West Bengal. Explain concepts clearly in colloquial Bengali and English.",
 };
@@ -211,7 +208,6 @@ function settingsFromConfig(config: AppConfig | null): SettingsDraft {
     update_url: config.update_url ?? "",
     update_message: config.update_message ?? "",
     notice_banner: config.notice_banner ?? "",
-    ai_worker_url: config.ai_worker_url ?? "",
     ai_system_prompt: config.ai_system_prompt ?? "",
   };
 }
@@ -563,7 +559,7 @@ function SettingsTab({ settings, setSettings, runMutation }: { settings: Setting
   return <div><TabTitle icon={Settings2} title="App controls" description="Manage forced updates, the global notice, and how the AI teacher responds." />
     <form onSubmit={save} className="grid gap-5 xl:grid-cols-2">
       <GlassPanel className="p-5 sm:p-6"><div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-rose-400/10 text-rose-700"><RefreshCw className="h-5 w-5" /></span><div><h3 className="font-bold">Force update</h3><p className="mt-1 text-xs text-slate-500">Block outdated clients until they update.</p></div></div><button type="button" onClick={() => setSettings({ ...settings, force_update_active: settings.force_update_active ? 0 : 1 })} className={`mt-6 flex w-full items-center justify-between rounded-2xl border p-4 text-left transition ${settings.force_update_active ? "border-rose-300/60 bg-rose-400/[0.07]" : "border-slate-200/80 bg-white/60"}`}><span><span className="block text-sm font-bold">Force update is {settings.force_update_active ? "ON" : "OFF"}</span><span className="mt-1 block text-[10px] text-slate-500">Students below the minimum version will see a blocker.</span></span>{settings.force_update_active ? <ToggleRight className="h-8 w-8 text-rose-600" /> : <ToggleLeft className="h-8 w-8 text-slate-400" />}</button><div className="mt-5 grid gap-4 sm:grid-cols-2"><Field label="Latest version"><input required value={settings.latest_version} onChange={(e) => setSettings({ ...settings, latest_version: e.target.value })} className={inputClass} placeholder="1.1.0" /></Field><Field label="Minimum required"><input required value={settings.min_required_version} onChange={(e) => setSettings({ ...settings, min_required_version: e.target.value })} className={inputClass} placeholder="1.0.0" /></Field></div><div className="mt-4"><Field label="Update URL"><input required type="url" value={settings.update_url} onChange={(e) => setSettings({ ...settings, update_url: e.target.value })} className={inputClass} placeholder="https://play.google.com/..." /></Field></div><div className="mt-4"><Field label="Update message"><textarea required rows={3} value={settings.update_message} onChange={(e) => setSettings({ ...settings, update_message: e.target.value })} className={textareaClass} /></Field></div></GlassPanel>
-      <GlassPanel className="p-5 sm:p-6"><div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-indigo-400/10 text-indigo-700"><MessageSquareText className="h-5 w-5" /></span><div><h3 className="font-bold">AI teacher</h3><p className="mt-1 text-xs text-slate-500">Control the worker and system personality.</p></div></div><div className="mt-6"><Field label="Cloudflare Worker URL"><input type="url" value={settings.ai_worker_url} onChange={(e) => setSettings({ ...settings, ai_worker_url: e.target.value })} className={inputClass} placeholder="https://your-worker.workers.dev/v1/chat" /></Field></div><div className="mt-4"><Field label="AI system prompt" hint="Tell the AI which board, language, tone and teaching method to use."><textarea required rows={8} value={settings.ai_system_prompt} onChange={(e) => setSettings({ ...settings, ai_system_prompt: e.target.value })} className={textareaClass} /></Field></div></GlassPanel>
+      <GlassPanel className="p-5 sm:p-6"><div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-indigo-400/10 text-indigo-700"><MessageSquareText className="h-5 w-5" /></span><div><h3 className="font-bold">AI teacher</h3><p className="mt-1 text-xs text-slate-500">Powered by Google Gemini (GEMINI_API_KEY). The SahajSkill AI স্যার persona is always applied.</p></div></div><div className="mt-6"><Field label="Extra AI instructions" hint="Added to the built-in vocational teacher persona. Leave empty to use the persona only."><textarea rows={8} value={settings.ai_system_prompt} onChange={(e) => setSettings({ ...settings, ai_system_prompt: e.target.value })} className={textareaClass} /></Field></div></GlassPanel>
       <GlassPanel className="p-5 sm:p-6 xl:col-span-2"><div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-sky-400/10 text-sky-700"><Zap className="h-5 w-5" /></span><div><h3 className="font-bold">Global notice banner</h3><p className="mt-1 text-xs text-slate-500">This message scrolls across the top of the student dashboard.</p></div></div><div className="mt-5"><Field label="Notice text"><input required value={settings.notice_banner} onChange={(e) => setSettings({ ...settings, notice_banner: e.target.value })} className={inputClass} /></Field></div></GlassPanel>
       <div className="flex justify-end xl:col-span-2"><button disabled={saving} className={`${primaryButton} min-w-44`}>{saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save controls</button></div>
     </form>

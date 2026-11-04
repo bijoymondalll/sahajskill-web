@@ -61,7 +61,6 @@ const WRITABLE_COLUMNS: Record<Entity, string[]> = {
     "update_url",
     "update_message",
     "notice_banner",
-    "ai_worker_url",
     "ai_system_prompt",
   ],
 };
