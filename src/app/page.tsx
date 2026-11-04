@@ -51,6 +51,14 @@ import {
   XCircle,
   Zap,
 } from "lucide-react";
+import {
+  DEMO_CLASSES,
+  DEMO_LIVE_CLASSES,
+  DEMO_MATERIALS,
+  DEMO_MOCK_TESTS,
+  DEMO_SUBJECTS,
+  buildDemoContent,
+} from "@/lib/demo-content";
 
 /* -------------------------------------------------------------------------- */
 /*                                  Types                                     */
@@ -152,49 +160,8 @@ type Tab = "home" | "library" | "live" | "tests" | "ai";
 /*                               Demo fallback                                */
 /* -------------------------------------------------------------------------- */
 
-const DEMO_TEST: MockTest = {
-  id: "demo-etit-test",
-  subject_id: "sub-etit-12",
-  title: "ETIT Quick Revision",
-  duration_minutes: 5,
-  questions_json: [
-    {
-      q: "CPU-এর পূর্ণরূপ কী? / What is the full form of CPU?",
-      options: [
-        "Central Processing Unit",
-        "Computer Personal Unit",
-        "Central Program Utility",
-        "Control Processing User",
-      ],
-      ans: 0,
-      explanation:
-        "CPU means Central Processing Unit. এটি কম্পিউটারের মূল processing অংশ।",
-    },
-    {
-      q: "Which HTML tag creates a hyperlink?",
-      options: ["<link>", "<a>", "<href>", "<url>"],
-      ans: 1,
-      explanation: "The anchor tag <a> creates a hyperlink in HTML.",
-    },
-    {
-      q: "ওহমের সূত্র কোনটি? / Which is Ohm's law?",
-      options: ["P = VI", "V = IR", "Q = It", "E = mc²"],
-      ans: 1,
-      explanation: "Ohm's law is V = IR, where V, I and R are voltage, current and resistance.",
-    },
-  ],
-};
-
-const DEMO_LIVE: LiveClass = {
-  id: "demo-live",
-  class_id: "class-12",
-  subject_name: "ETIT",
-  title: "Web Design Revision Class",
-  teacher_name: "SahajSkill Faculty",
-  stream_url: "https://www.youtube.com/watch?v=jfKfPfyJRdk",
-  is_live: 1,
-  scheduled_time: null,
-};
+// Demo classes, subjects, materials, live classes and mock tests live in
+// src/lib/demo-content.ts and fill any section the admin has not added yet.
 
 const DEFAULT_CONFIG: AppConfig = {
   id: 1,
@@ -261,10 +228,26 @@ function getYoutubeEmbed(url: string): string | null {
   return null;
 }
 
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+/** Fetch /api/content; throws on network errors, non-2xx or invalid JSON. */
 async function fetchDashboardContent(): Promise<ContentResponse> {
   const response = await fetch("/api/content", { cache: "no-store" });
   if (!response.ok) throw new Error(`Content request failed (${response.status})`);
-  return (await response.json()) as ContentResponse;
+  const data = JSON.parse(await response.text()) as Partial<ContentResponse> | null;
+  if (!data || typeof data !== "object") throw new Error("Invalid content response");
+  return {
+    classes: asArray<ClassItem>(data.classes),
+    subjects: asArray<Subject>(data.subjects),
+    materials: asArray<Material>(data.materials),
+    live_classes: asArray<LiveClass>(data.live_classes),
+    mock_tests: asArray<MockTest>(data.mock_tests),
+    app_config: data.app_config ?? null,
+    leaderboard: asArray<LeaderboardUser>(data.leaderboard),
+    source: data.source,
+  };
 }
 
 function subjectVisual(code: string | null, index: number) {
@@ -320,7 +303,7 @@ function GlassCard({ children, className = "" }: { children: ReactNode; classNam
 export default function HomePage() {
   const [content, setContent] = useState<ContentResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
+  const [noticeDismissed, setNoticeDismissed] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [viewerMaterial, setViewerMaterial] = useState<Material | null>(null);
@@ -339,19 +322,18 @@ export default function HomePage() {
     window.scrollTo({ top: 0 });
   }, []);
 
+  // One loader for the first load and the retry button. On any failure the
+  // page falls back to the shared demo content instead of blocking.
   const loadContent = useCallback(async () => {
     setLoading(true);
-    setLoadError("");
     try {
-      const response = await fetch("/api/content", { cache: "no-store" });
-      if (!response.ok) throw new Error(`Content request failed (${response.status})`);
-      const data = (await response.json()) as ContentResponse;
+      const data = await fetchDashboardContent();
       setContent(data);
-      const firstActive = data.classes.find((item) => item.status === "ACTIVE");
-      setSelectedClassId((current) => current || firstActive?.id || "");
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "Content could not be loaded");
+      console.error("[SahajSkill] content load failed, showing demo content:", error);
+      setContent({ ...buildDemoContent(), source: "mock-fallback" });
     } finally {
+      setNoticeDismissed(false);
       setLoading(false);
     }
   }, []);
@@ -360,19 +342,9 @@ export default function HomePage() {
     const storedXp = Number.parseInt(localStorage.getItem("sahajskill-xp") ?? "0", 10);
     queueMicrotask(() => {
       if (Number.isFinite(storedXp)) setStudentXp(storedXp);
+      void loadContent();
     });
-
-    fetchDashboardContent()
-      .then((data) => {
-        setContent(data);
-        const firstActive = data.classes.find((item) => item.status === "ACTIVE");
-        setSelectedClassId((current) => current || firstActive?.id || "");
-      })
-      .catch((error: unknown) => {
-        setLoadError(error instanceof Error ? error.message : "Content could not be loaded");
-      })
-      .finally(() => setLoading(false));
-  }, []);
+  }, [loadContent]);
 
   // Signed-in students use their Turso XP instead of the on-device value.
   useEffect(() => {
@@ -398,34 +370,57 @@ export default function HomePage() {
     config.force_update_active === 1 &&
     versionIsOlder(appVersion, config.min_required_version);
 
+  // Empty sections are filled with demo items (marked "ডেমো" in the UI). The
+  // API itself only returns real rows when Turso is configured.
+  const usingDemoClasses = !content?.classes.length;
   const visibleClasses = useMemo(
-    () => content?.classes.filter((item) => item.status !== "HIDDEN") ?? [],
+    () =>
+      (content?.classes.length ? content.classes : DEMO_CLASSES).filter(
+        (item) => item.status !== "HIDDEN"
+      ),
     [content]
   );
+  const activeClassId =
+    selectedClassId && visibleClasses.some((item) => item.id === selectedClassId)
+      ? selectedClassId
+      : visibleClasses.find((item) => item.status === "ACTIVE")?.id ?? "";
   const subjects = useMemo(
     () =>
-      content?.subjects.filter(
-        (item) => item.class_id === selectedClassId && item.status === "ACTIVE"
-      ) ?? [],
-    [content, selectedClassId]
+      (usingDemoClasses ? DEMO_SUBJECTS : content?.subjects ?? []).filter(
+        (item) => item.class_id === activeClassId && item.status === "ACTIVE"
+      ),
+    [content, usingDemoClasses, activeClassId]
   );
-  const selectedMaterials = useMemo(
+  const realMaterials = useMemo(
     () =>
       content?.materials.filter((item) => item.subject_id === selectedSubject?.id) ?? [],
     [content, selectedSubject]
   );
-  const selectedClass = visibleClasses.find((item) => item.id === selectedClassId);
+  const materialsAreDemo = !!selectedSubject && realMaterials.length === 0;
+  const selectedMaterials = materialsAreDemo
+    ? DEMO_MATERIALS.filter((item) => item.subject_id === selectedSubject?.id)
+    : realMaterials;
+  const selectedClass = visibleClasses.find((item) => item.id === activeClassId);
   const apiLiveClasses =
     content?.live_classes.filter(
-      (item) => item.class_id === selectedClassId && item.is_live === 1
+      (item) => item.class_id === activeClassId && item.is_live === 1
     ) ?? [];
+  const demoLiveForClass = DEMO_LIVE_CLASSES.filter((item) => item.class_id === activeClassId);
   const liveClasses =
     apiLiveClasses.length > 0
       ? apiLiveClasses
-      : content?.source !== "turso"
-        ? [DEMO_LIVE]
-        : [];
-  const tests = content?.mock_tests.length ? content.mock_tests : [DEMO_TEST];
+      : demoLiveForClass.length > 0
+        ? demoLiveForClass
+        : DEMO_LIVE_CLASSES;
+  const liveIsDemo = apiLiveClasses.length === 0;
+  const testsAreDemo = !content?.mock_tests.length;
+  const tests = useMemo(() => {
+    if (content?.mock_tests.length) return content.mock_tests;
+    const subjectIds = new Set(subjects.map((item) => item.id));
+    const forClass = DEMO_MOCK_TESTS.filter((test) => subjectIds.has(test.subject_id));
+    return forClass.length ? forClass : DEMO_MOCK_TESTS;
+  }, [content, subjects]);
+  const showLoadNotice = content?.source === "mock-fallback" && !noticeDismissed;
 
   const leaderboard = useMemo(() => {
     const users = [...(content?.leaderboard ?? [])].filter(
@@ -436,10 +431,10 @@ export default function HomePage() {
       name: sessionUserName ? `${sessionUserName} (You)` : "You / তুমি",
       avatar_url: sessionUserImage ?? null,
       xp_points: studentXp,
-      class_id: selectedClassId,
+      class_id: activeClassId,
     });
     return users.sort((a, b) => b.xp_points - a.xp_points).slice(0, 8);
-  }, [content, selectedClassId, studentXp, sessionUserId, sessionUserName, sessionUserImage]);
+  }, [content, activeClassId, studentXp, sessionUserId, sessionUserName, sessionUserImage]);
 
   const leaderboardNote = signedIn
     ? "Your XP is synced to your SahajSkill account."
@@ -501,10 +496,17 @@ export default function HomePage() {
       <div className="relative z-10 mx-auto max-w-7xl px-4 pb-36 pt-7 sm:px-6 lg:px-8">
         <Header xp={studentXp} source={content?.source} onHome={() => navigate("home")} />
 
-        {loading ? (
+        {showLoadNotice && activeTab !== "ai" && (
+          <DemoNotice
+            retrying={loading}
+            onRetry={() => void loadContent()}
+            onDismiss={() => setNoticeDismissed(true)}
+          />
+        )}
+
+        {/* The Ask AI tab never waits for /api/content. */}
+        {loading && !content && activeTab !== "ai" ? (
           <LoadingState />
-        ) : loadError ? (
-          <ErrorState message={loadError} onRetry={loadContent} />
         ) : (
           <AnimatePresence mode="wait">
             <motion.div
@@ -519,7 +521,7 @@ export default function HomePage() {
                   <Hero selectedClass={selectedClass} onExplore={() => navigate("library")} />
                   <ClassSelector
                     classes={visibleClasses}
-                    selectedId={selectedClassId}
+                    selectedId={activeClassId}
                     onSelect={(item) => {
                       if (item.status !== "ACTIVE") return;
                       setSelectedClassId(item.id);
@@ -561,6 +563,7 @@ export default function HomePage() {
                   <MaterialViewer
                     subject={selectedSubject}
                     materials={selectedMaterials}
+                    isDemo={materialsAreDemo && selectedMaterials.length > 0}
                     viewerMaterial={viewerMaterial}
                     onOpen={setViewerMaterial}
                     onClose={() => setViewerMaterial(null)}
@@ -577,7 +580,7 @@ export default function HomePage() {
                   />
                   <LiveClassPanel
                     liveClass={liveClasses[0] ?? null}
-                    isDemo={apiLiveClasses.length === 0 && liveClasses.length > 0}
+                    isDemo={liveIsDemo && liveClasses.length > 0}
                     playerOpen={playerOpen}
                     setPlayerOpen={setPlayerOpen}
                   />
@@ -593,6 +596,7 @@ export default function HomePage() {
                   />
                   <MockTestEngine
                     tests={tests}
+                    isDemo={testsAreDemo}
                     run={testRun}
                     leaderboard={leaderboard}
                     leaderboardNote={leaderboardNote}
@@ -610,7 +614,7 @@ export default function HomePage() {
         )}
       </div>
 
-      {activeTab === "ai" && !loading && !loadError && <AiInputBar chat={chat} />}
+      {activeTab === "ai" && <AiInputBar chat={chat} />}
 
       <Dock active={activeTab} onNavigate={navigate} />
 
@@ -946,7 +950,7 @@ function LiveClassPanel({ liveClass, isDemo, playerOpen, setPlayerOpen }: { live
                 <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-white" /></span>
                 Live now
               </span>
-              {isDemo && <span className="rounded-full border border-slate-200/80 bg-slate-100/70 px-3 py-1.5 text-[10px] text-slate-600">DEMO</span>}
+              {isDemo && <DemoBadge />}
             </div>
             <p className="mt-7 text-sm font-semibold text-rose-700">{liveClass.subject_name}</p>
             <h3 className="mt-2 text-2xl font-black sm:text-3xl">{liveClass.title}</h3>
@@ -1006,14 +1010,14 @@ function SubjectGrid({ subjects, selectedSubject, onSelect }: { subjects: Subjec
   );
 }
 
-function MaterialViewer({ subject, materials, viewerMaterial, onOpen, onClose }: { subject: Subject | null; materials: Material[]; viewerMaterial: Material | null; onOpen: (material: Material) => void; onClose: () => void }) {
+function MaterialViewer({ subject, materials, isDemo, viewerMaterial, onOpen, onClose }: { subject: Subject | null; materials: Material[]; isDemo: boolean; viewerMaterial: Material | null; onOpen: (material: Material) => void; onClose: () => void }) {
   if (!subject) return <div className="mt-5 rounded-2xl border border-dashed border-slate-200/80 p-6 text-center text-sm text-slate-500">Select a subject to see Notes & Suggestions.</div>;
   return (
     <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="mt-5">
       <GlassCard className="overflow-hidden">
         <div className="flex flex-col gap-4 border-b border-slate-200/80 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div><p className="text-xs font-semibold text-sky-600">{subject.trade_code}</p><h3 className="mt-1 text-lg font-bold">{subject.name} Library</h3></div>
-          <span className="text-xs text-slate-500">{materials.length} resources</span>
+          <span className="flex items-center gap-2 text-xs text-slate-500">{isDemo && <DemoBadge />}{materials.length} resources</span>
         </div>
         {materials.length ? (
           <div className="grid gap-3 p-4 md:grid-cols-2">
@@ -1099,7 +1103,7 @@ function useMockTestRun(onAwardXp: (test: MockTest, answers: Record<number, numb
 
 type MockTestRun = ReturnType<typeof useMockTestRun>;
 
-function MockTestEngine({ tests, run, leaderboard, leaderboardNote }: { tests: MockTest[]; run: MockTestRun; leaderboard: LeaderboardUser[]; leaderboardNote: string }) {
+function MockTestEngine({ tests, isDemo, run, leaderboard, leaderboardNote }: { tests: MockTest[]; isDemo: boolean; run: MockTestRun; leaderboard: LeaderboardUser[]; leaderboardNote: string }) {
   const { activeTest, questionIndex, setQuestionIndex, answers, setAnswers, submitted, timeLeft, questions, score, finishTest, start, reset } = run;
 
   return (
@@ -1107,7 +1111,7 @@ function MockTestEngine({ tests, run, leaderboard, leaderboardNote }: { tests: M
       <GlassCard className="min-h-[460px] p-5 sm:p-7">
         {!activeTest ? (
           <div>
-            <div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-indigo-400/12 text-indigo-700"><BrainCircuit className="h-5 w-5" /></span><div><h3 className="font-bold">Available tests</h3><p className="text-xs text-slate-500">10 XP for each correct answer</p></div></div>
+            <div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-indigo-400/12 text-indigo-700"><BrainCircuit className="h-5 w-5" /></span><div><h3 className="flex items-center gap-2 font-bold">Available tests {isDemo && <DemoBadge />}</h3><p className="text-xs text-slate-500">10 XP for each correct answer</p></div></div>
             <div className="mt-6 space-y-3">{tests.map((test) => { const count = parseQuestions(test.questions_json).length; return <button key={test.id} disabled={!count} onClick={() => start(test)} className="flex w-full items-center gap-4 rounded-2xl border border-slate-200/80 bg-white/60 p-4 text-left transition hover:border-indigo-300/75 hover:bg-slate-100 disabled:opacity-40"><span className="grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600"><Play className="h-5 w-5 fill-white" /></span><span className="flex-1"><span className="block font-semibold">{test.title}</span><span className="mt-1 block text-xs text-slate-500">{count} questions • {test.duration_minutes} min</span></span><ChevronRight className="h-4 w-4 text-slate-400" /></button>; })}</div>
           </div>
         ) : submitted ? (
@@ -1145,6 +1149,9 @@ function Leaderboard({ users, note, onViewAll }: { users: LeaderboardUser[]; not
 /*                                 AI chat                                    */
 /* -------------------------------------------------------------------------- */
 
+const AI_CLIENT_TIMEOUT_MS = 30_000;
+const AI_ERROR_MESSAGE = "দুঃখিত, এখন উত্তর দিতে পারছি না। একটু পরে আবার চেষ্টা করো।";
+
 /**
  * AI chat state. Lives in HomePage so the conversation survives switching
  * dock tabs, and a reply that arrives while another tab is open is kept.
@@ -1159,14 +1166,21 @@ function useAiChat() {
     if (!message || sending) return;
     const previous = messages;
     setMessages([...previous, { role: "user", content: message }]); setInput(""); setSending(true);
+    // Abort after AI_CLIENT_TIMEOUT_MS so the UI never hangs in "উত্তর লিখছি...".
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), AI_CLIENT_TIMEOUT_MS);
     try {
-      const response = await fetch("/api/ai", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, history: previous.slice(-8) }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data?.error ?? "AI request failed");
-      setMessages((current) => [...current, { role: "assistant", content: data.reply }]);
+      const response = await fetch("/api/ai", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, history: previous.slice(-8) }), signal: controller.signal });
+      const raw = await response.text();
+      let data: { reply?: unknown; error?: unknown } | null = null;
+      try { data = JSON.parse(raw); } catch { data = null; }
+      const reply = typeof data?.reply === "string" ? data.reply.trim() : "";
+      if (!response.ok || !reply) throw new Error(typeof data?.error === "string" ? data.error : `AI request failed (${response.status})`);
+      setMessages((current) => [...current, { role: "assistant", content: reply }]);
     } catch (error) {
-      setMessages((current) => [...current, { role: "assistant", content: `দুঃখিত, এখন উত্তর দিতে পারছি না। ${error instanceof Error ? error.message : "Try again."}` }]);
-    } finally { setSending(false); }
+      console.error("[SahajSkill] AI request failed:", error);
+      setMessages((current) => [...current, { role: "assistant", content: AI_ERROR_MESSAGE }]);
+    } finally { window.clearTimeout(timeout); setSending(false); }
   }
 
   return { messages, input, setInput, sending, sendMessage };
@@ -1310,6 +1324,23 @@ function LoadingState() {
   return <div className="grid min-h-[65vh] place-items-center"><div className="text-center"><LoaderCircle className="mx-auto h-8 w-8 animate-spin text-sky-600" /><p className="mt-4 text-sm text-slate-500">তোমার learning space তৈরি হচ্ছে...</p></div></div>;
 }
 
-function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return <div className="grid min-h-[65vh] place-items-center"><GlassCard className="max-w-md p-8 text-center"><AlertTriangle className="mx-auto h-8 w-8 text-amber-600" /><h2 className="mt-4 text-xl font-bold">Dashboard could not load</h2><p className="mt-2 text-sm text-slate-500">{message}</p><button onClick={onRetry} className="mt-6 inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-3 text-sm font-bold text-white"><RefreshCw className="h-4 w-4" /> Try again</button></GlassCard></div>;
+/** Small "ডেমো" tag for sections filled with demo content. */
+function DemoBadge() {
+  return <span className="rounded-full border border-amber-300/60 bg-amber-300/10 px-2.5 py-1 text-[10px] font-bold text-amber-700">ডেমো</span>;
+}
+
+/** Compact notice shown when /api/content failed and demo content is shown. */
+function DemoNotice({ retrying, onRetry, onDismiss }: { retrying: boolean; onRetry: () => void; onDismiss: () => void }) {
+  return (
+    <div role="status" className="mt-3 flex items-center gap-2 rounded-2xl border border-amber-300/60 bg-amber-50/90 px-3 py-2 text-xs text-amber-800 backdrop-blur-xl">
+      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+      <p className="min-w-0 flex-1 leading-5">সার্ভার থেকে ডেটা আনা যায়নি, এখন ডেমো কনটেন্ট দেখানো হচ্ছে।</p>
+      <button type="button" onClick={onRetry} disabled={retrying} className="flex shrink-0 items-center gap-1 rounded-full bg-amber-600 px-3 py-1.5 font-bold text-white transition hover:bg-amber-700 disabled:opacity-60">
+        <RefreshCw className={`h-3.5 w-3.5 ${retrying ? "animate-spin" : ""}`} /> আবার চেষ্টা করো
+      </button>
+      <button type="button" onClick={onDismiss} aria-label="বন্ধ করো" className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-amber-700 hover:bg-amber-100">
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
 }

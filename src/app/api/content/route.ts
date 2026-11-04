@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db, initDatabase } from "@/lib/db";
+import { buildDemoContent } from "@/lib/demo-content";
 
 /**
  * GET /api/content
@@ -11,8 +11,10 @@ import { db, initDatabase } from "@/lib/db";
  * REQ-1.1 / REQ-2.* / REQ-3.* / REQ-5.* — everything is dynamic.
  *
  * If Turso is not configured yet (placeholder TURSO_DATABASE_URL), the route
- * gracefully falls back to seed/mock data so the UI never crashes during
- * local development or demos.
+ * gracefully falls back to the shared demo data so the UI never crashes during
+ * local development or demos. When Turso IS configured, only real DB rows are
+ * returned (the admin page reads this endpoint too); the student page fills
+ * empty sections with demo items on the client.
  */
 
 function isTursoConfigured(): boolean {
@@ -28,110 +30,9 @@ function isTursoConfigured(): boolean {
 /*                               Mock fallback                                */
 /* -------------------------------------------------------------------------- */
 
+/** Shared demo dataset (see src/lib/demo-content.ts). */
 function buildMockContent() {
-  const classes = [
-    {
-      id: "class-12",
-      title: "Class 12 (HS Vocational)",
-      subtitle: "WBSCTVESD Semester 3 & 4",
-      status: "ACTIVE",
-      banner_url: null,
-      sort_order: 1,
-    },
-    {
-      id: "class-11",
-      title: "Class 11 (HS Vocational)",
-      subtitle: "WBSCTVESD Semester 1 & 2",
-      status: "COMING_SOON",
-      banner_url: null,
-      sort_order: 2,
-    },
-  ];
-
-  const subjects = [
-    {
-      id: "sub-etit-12",
-      class_id: "class-12",
-      name: "ETIT (Computer Application)",
-      trade_code: "ETIT",
-      icon_url: null,
-      teacher_name: "SahajSkill Faculty",
-      status: "ACTIVE",
-    },
-    {
-      id: "sub-edca-12",
-      class_id: "class-12",
-      name: "EDCA (Electronics)",
-      trade_code: "EDCA",
-      icon_url: null,
-      teacher_name: "SahajSkill Faculty",
-      status: "ACTIVE",
-    },
-    {
-      id: "sub-physics-12",
-      class_id: "class-12",
-      name: "Physics",
-      trade_code: "COMMON",
-      icon_url: null,
-      teacher_name: "SahajSkill Faculty",
-      status: "ACTIVE",
-    },
-    {
-      id: "sub-chemistry-12",
-      class_id: "class-12",
-      name: "Chemistry",
-      trade_code: "COMMON",
-      icon_url: null,
-      teacher_name: "SahajSkill Faculty",
-      status: "ACTIVE",
-    },
-    {
-      id: "sub-math-12",
-      class_id: "class-12",
-      name: "Mathematics",
-      trade_code: "COMMON",
-      icon_url: null,
-      teacher_name: "SahajSkill Faculty",
-      status: "ACTIVE",
-    },
-  ];
-
-  const materials = [
-    {
-      id: "mat-demo-1",
-      subject_id: "sub-etit-12",
-      title: "ETIT Semester 3 Full Suggestion (Demo)",
-      category: "SUGGESTION",
-      file_url: "https://drive.google.com/file/d/DEMO_FILE_ID/preview",
-      thumbnail_url: null,
-      is_important: 1,
-      created_at: new Date().toISOString(),
-    },
-  ];
-
-  const app_config = {
-    id: 1,
-    latest_version: "1.0.0",
-    min_required_version: "1.0.0",
-    force_update_active: 0,
-    update_url: "https://play.google.com",
-    update_message: "নতুন ফিচার ও সাজেশন পেতে অ্যাপটি আপডেট কর!",
-    notice_banner: "WBSCTVESD Class 12 Semester Suggestion Live Now!",
-    ai_worker_url: process.env.AI_WORKER_URL ?? null,
-    ai_system_prompt:
-      "You are a friendly WBSCTVESD Vocational teacher from West Bengal. Explain concepts clearly in colloquial Bengali and English.",
-  };
-
-  return {
-    classes,
-    subjects,
-    materials,
-    live_classes: [] as unknown[],
-    mock_tests: [] as unknown[],
-    app_config,
-    leaderboard: [] as unknown[],
-    source: "mock" as const,
-  };
+  return buildDemoContent();
 }
 
 /* -------------------------------------------------------------------------- */
@@ -144,6 +45,8 @@ export async function GET() {
   }
 
   try {
+    // Lazy import: keeps this module loadable without TURSO_DATABASE_URL.
+    const { db, initDatabase } = await import("@/lib/db");
     await initDatabase();
 
     const [

@@ -3,8 +3,9 @@ import { NextResponse, type NextRequest } from "next/server";
 /**
  * POST /api/ai  -  AI Doubt Solver (REQ-4.1), powered by Google Gemini.
  *
- * Calls the official Gemini REST API directly using `GEMINI_API_KEY`
- * (or `GOOGLE_GENERATIVE_AI_API_KEY`). The model is `gemini-2.5-flash`, with
+ * Calls the official Gemini REST API directly using `GEMINI_API_KEY`, or
+ * `GOOGLE_GENERATIVE_AI_API_KEY` when the first is unset, empty, or a
+ * placeholder (starts with "your-"). The model is `gemini-2.5-flash`, with
  * an automatic retry on `gemini-1.5-flash` if the first call fails.
  *
  * The system instruction is a strict vocational teacher persona. If the admin
@@ -64,7 +65,7 @@ async function resolveSystemPrompt(): Promise<string> {
   if (!tursoConfigured) return TEACHER_PERSONA;
 
   try {
-    // Lazy import: `@/lib/db` throws at import time without TURSO_DATABASE_URL.
+    // Lazy import: only load the DB module when Turso is configured.
     const { db, initDatabase } = await import("@/lib/db");
     await initDatabase();
     const res = await db.execute(
@@ -212,11 +213,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const apiKey = (
-    process.env.GEMINI_API_KEY ??
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY ??
-    ""
-  ).trim();
+  // First non-empty, non-placeholder key wins (an empty GEMINI_API_KEY must
+  // not hide GOOGLE_GENERATIVE_AI_API_KEY).
+  const apiKey =
+    [process.env.GEMINI_API_KEY, process.env.GOOGLE_GENERATIVE_AI_API_KEY]
+      .map((value) => value?.trim() ?? "")
+      .find((value) => value && !value.startsWith("your-")) ?? "";
 
   if (!apiKey) {
     return NextResponse.json({

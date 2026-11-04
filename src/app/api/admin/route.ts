@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { InValue } from "@libsql/client";
-import { db, initDatabase } from "@/lib/db";
 import { sanitizeDriveLink } from "@/lib/helpers";
 
 /**
@@ -66,6 +65,13 @@ const WRITABLE_COLUMNS: Record<Entity, string[]> = {
 };
 
 const VALID_ENTITIES = new Set(Object.keys(WRITABLE_COLUMNS));
+
+/** Lazy import: keeps this module loadable without TURSO_DATABASE_URL. */
+async function getDb() {
+  const { db, initDatabase } = await import("@/lib/db");
+  await initDatabase();
+  return db;
+}
 
 function isValidEntity(value: unknown): value is Entity {
   return typeof value === "string" && VALID_ENTITIES.has(value);
@@ -137,7 +143,7 @@ export async function POST(request: NextRequest) {
   if (guard) return guard;
 
   try {
-    await initDatabase();
+    const db = await getDb();
     const body = await request.json();
     const { entity, data } = body ?? {};
 
@@ -195,7 +201,7 @@ export async function PUT(request: NextRequest) {
   if (guard) return guard;
 
   try {
-    await initDatabase();
+    const db = await getDb();
     const body = await request.json();
     const { entity, id, data } = body ?? {};
 
@@ -269,7 +275,7 @@ export async function DELETE(request: NextRequest) {
   if (guard) return guard;
 
   try {
-    await initDatabase();
+    const db = await getDb();
 
     // Accept id/entity from JSON body or query string.
     let entity: unknown;

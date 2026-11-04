@@ -3,15 +3,19 @@ import { createClient, type Client } from "@libsql/client";
 /**
  * Turso (libSQL) database client for SahajSkill.
  *
- * A single shared client is reused across hot reloads in development to avoid
- * exhausting connections. Schema creation + seeding is handled by
- * {@link initDatabase}, which is idempotent (safe to call repeatedly).
+ * The client is created lazily on first use, so importing this module never
+ * throws when TURSO_DATABASE_URL is missing. A single shared client is reused
+ * across hot reloads in development to avoid exhausting connections. Schema
+ * creation + seeding is handled by {@link initDatabase}, which is idempotent
+ * (safe to call repeatedly).
  */
 
 const globalForDb = globalThis as unknown as {
   __sahajskillDb?: Client;
   __sahajskillDbInit?: Promise<void>;
 };
+
+let client: Client | undefined = globalForDb.__sahajskillDb;
 
 function createDbClient(): Client {
   const url = process.env.TURSO_DATABASE_URL;
@@ -26,11 +30,30 @@ function createDbClient(): Client {
   return createClient({ url, authToken });
 }
 
-export const db: Client = globalForDb.__sahajskillDb ?? createDbClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.__sahajskillDb = db;
+/** Create the client on first use (throws only when actually called). */
+function getClient(): Client {
+  if (!client) {
+    client = createDbClient();
+    if (process.env.NODE_ENV !== "production") {
+      globalForDb.__sahajskillDb = client;
+    }
+  }
+  return client;
 }
+
+/**
+ * Lazy proxy over the libSQL client: `db.execute(...)` creates the client on
+ * the first call. Methods are bound to the real client.
+ */
+export const db: Client = new Proxy({} as Client, {
+  get(_target, prop) {
+    // Not a thenable: lets async functions `return db` without creating it.
+    if (prop === "then") return undefined;
+    const real = getClient();
+    const value = Reflect.get(real, prop, real);
+    return typeof value === "function" ? value.bind(real) : value;
+  },
+});
 
 /* -------------------------------------------------------------------------- */
 /*                                Schema (DDL)                                */
