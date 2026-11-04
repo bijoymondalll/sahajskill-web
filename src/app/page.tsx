@@ -10,6 +10,8 @@ import {
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
@@ -32,6 +34,8 @@ import {
   Lightbulb,
   LoaderCircle,
   LockKeyhole,
+  LogIn,
+  LogOut,
   Maximize2,
   MessageCircleQuestion,
   MonitorPlay,
@@ -39,6 +43,7 @@ import {
   Radio,
   RefreshCw,
   Send,
+  ShieldCheck,
   Sparkles,
   Trophy,
   Video,
@@ -141,7 +146,7 @@ type ChatMessage = {
   content: string;
 };
 
-type SectionId = "home" | "subjects" | "live" | "tests" | "ai";
+type Tab = "home" | "library" | "live" | "tests" | "ai";
 
 /* -------------------------------------------------------------------------- */
 /*                               Demo fallback                                */
@@ -262,10 +267,6 @@ async function fetchDashboardContent(): Promise<ContentResponse> {
   return (await response.json()) as ContentResponse;
 }
 
-function scrollToSection(id: SectionId) {
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
 function subjectVisual(code: string | null, index: number) {
   const key = (code ?? "").toUpperCase();
   if (key === "ETIT") return { Icon: Laptop, gradient: "from-sky-400 to-blue-600" };
@@ -280,6 +281,22 @@ function subjectVisual(code: string | null, index: number) {
 /** Apple iOS 18 / visionOS style translucent white liquid glass surface. */
 const LIQUID_GLASS =
   "rounded-3xl border border-white/90 bg-white/75 shadow-[0_8px_30px_rgb(14,165,233,0.07),inset_0_1px_1px_rgba(255,255,255,0.95)] backdrop-blur-2xl";
+
+/** Quick vocational prompts shown at the top of the Ask AI view. */
+const AI_PROMPT_CHIPS = [
+  "ETIT সাজেশন দে",
+  "EDCA SQL প্র্যাকটিস",
+  "Physics Ohm's Law বাংলায় বোঝাও",
+  "Chemistry Mole concept সহজে বোঝাও",
+  "Math Integration-এর important প্রশ্ন",
+];
+
+function isAdminSession(user?: { role?: string; email?: string | null } | null): boolean {
+  if (!user) return false;
+  if (user.role === "admin") return true;
+  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL?.trim().toLowerCase();
+  return !!adminEmail && user.email?.trim().toLowerCase() === adminEmail;
+}
 
 /** Gemini style floating pill used for inputs and the AI chat bar. */
 const FLOATING_PILL =
@@ -306,9 +323,20 @@ export default function HomePage() {
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [viewerMaterial, setViewerMaterial] = useState<Material | null>(null);
-  const [activeSection, setActiveSection] = useState<SectionId>("home");
+  const [activeTab, setActiveTab] = useState<Tab>("home");
   const [studentXp, setStudentXp] = useState(0);
   const [playerOpen, setPlayerOpen] = useState(false);
+  const { data: session, status: sessionStatus, update: updateSession } = useSession();
+  const signedIn = sessionStatus === "authenticated" && !!session?.user;
+  const sessionUserId = signedIn ? session?.user?.id : undefined;
+  const sessionUserName = signedIn ? session?.user?.name : undefined;
+  const sessionUserImage = signedIn ? session?.user?.image : undefined;
+  const sessionXp = signedIn ? session?.user?.xp_points : undefined;
+
+  const navigate = useCallback((tab: Tab) => {
+    setActiveTab(tab);
+    window.scrollTo({ top: 0 });
+  }, []);
 
   const loadContent = useCallback(async () => {
     setLoading(true);
@@ -344,6 +372,24 @@ export default function HomePage() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  // Signed-in students use their Turso XP instead of the on-device value.
+  useEffect(() => {
+    if (!signedIn) return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled && typeof sessionXp === "number") setStudentXp(sessionXp);
+    });
+    fetch("/api/xp", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { xp_points?: unknown } | null) => {
+        if (!cancelled && typeof data?.xp_points === "number") setStudentXp(data.xp_points);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [signedIn, sessionUserId, sessionXp]);
 
   const config = content?.app_config ?? DEFAULT_CONFIG;
   const appVersion = process.env.NEXT_PUBLIC_APP_VERSION ?? "1.0.0";
@@ -381,24 +427,52 @@ export default function HomePage() {
   const tests = content?.mock_tests.length ? content.mock_tests : [DEMO_TEST];
 
   const leaderboard = useMemo(() => {
-    const users = [...(content?.leaderboard ?? [])].filter((user) => user.id !== "local-student");
+    const users = [...(content?.leaderboard ?? [])].filter(
+      (user) => user.id !== "local-student" && (!sessionUserId || user.id !== sessionUserId)
+    );
     users.push({
       id: "local-student",
-      name: "You / তুমি",
-      avatar_url: null,
+      name: sessionUserName ? `${sessionUserName} (You)` : "You / তুমি",
+      avatar_url: sessionUserImage ?? null,
       xp_points: studentXp,
       class_id: selectedClassId,
     });
     return users.sort((a, b) => b.xp_points - a.xp_points).slice(0, 8);
-  }, [content, selectedClassId, studentXp]);
+  }, [content, selectedClassId, studentXp, sessionUserId, sessionUserName, sessionUserImage]);
 
-  const awardXp = useCallback((points: number) => {
-    setStudentXp((current) => {
-      const next = current + points;
-      localStorage.setItem("sahajskill-xp", String(next));
-      return next;
-    });
-  }, []);
+  const leaderboardNote = signedIn
+    ? "Your XP is synced to your SahajSkill account."
+    : "Your XP is saved on this device. Sign in with Google to sync it.";
+
+  const awardXp = useCallback(
+    (points: number) => {
+      const safePoints = Math.min(1000, Math.max(0, Math.round(points)));
+      if (safePoints <= 0) return;
+      if (!signedIn) {
+        setStudentXp((current) => {
+          const next = current + safePoints;
+          localStorage.setItem("sahajskill-xp", String(next));
+          return next;
+        });
+        return;
+      }
+      setStudentXp((current) => current + safePoints);
+      fetch("/api/xp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ points: safePoints }),
+      })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((data: { xp_points?: unknown } | null) => {
+          if (typeof data?.xp_points === "number") {
+            setStudentXp(data.xp_points);
+            void updateSession();
+          }
+        })
+        .catch(() => undefined);
+    },
+    [signedIn, updateSession]
+  );
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-gradient-to-b from-[#FFFFFF] to-[#F8FAFC] font-sans text-[#0F172A] selection:bg-sky-200">
@@ -406,90 +480,118 @@ export default function HomePage() {
       <NoticeMarquee text={config.notice_banner} />
 
       <div className="relative z-10 mx-auto max-w-7xl px-4 pb-36 pt-7 sm:px-6 lg:px-8">
-        <Header xp={studentXp} source={content?.source} />
+        <Header xp={studentXp} source={content?.source} onHome={() => navigate("home")} />
 
         {loading ? (
           <LoadingState />
         ) : loadError ? (
           <ErrorState message={loadError} onRetry={loadContent} />
         ) : (
-          <>
-            <section id="home" className="scroll-mt-24 pt-12 sm:pt-16">
-              <Hero selectedClass={selectedClass} onExplore={() => scrollToSection("subjects")} />
-              <ClassSelector
-                classes={visibleClasses}
-                selectedId={selectedClassId}
-                onSelect={(item) => {
-                  if (item.status !== "ACTIVE") return;
-                  setSelectedClassId(item.id);
-                  setSelectedSubject(null);
-                  setViewerMaterial(null);
-                }}
-              />
-            </section>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.22 }}
+            >
+              {activeTab === "home" && (
+                <div className="pt-12 sm:pt-16">
+                  <Hero selectedClass={selectedClass} onExplore={() => navigate("library")} />
+                  <ClassSelector
+                    classes={visibleClasses}
+                    selectedId={selectedClassId}
+                    onSelect={(item) => {
+                      if (item.status !== "ACTIVE") return;
+                      setSelectedClassId(item.id);
+                      setSelectedSubject(null);
+                      setViewerMaterial(null);
+                    }}
+                  />
+                  <QuickCards
+                    subjectCount={subjects.length}
+                    liveCount={liveClasses.length}
+                    testCount={tests.length}
+                    onNavigate={navigate}
+                  />
+                  <div className="mt-14">
+                    <Leaderboard
+                      users={leaderboard.slice(0, 5)}
+                      note={leaderboardNote}
+                      onViewAll={() => navigate("tests")}
+                    />
+                  </div>
+                </div>
+              )}
 
-            <section id="live" className="scroll-mt-24 pt-14">
-              <SectionHeading
-                eyebrow="Live classroom"
-                title="এখন শেখো, একসাথে"
-                description="Join live revision classes without leaving SahajSkill."
-              />
-              <LiveClassPanel
-                liveClass={liveClasses[0] ?? null}
-                isDemo={apiLiveClasses.length === 0 && liveClasses.length > 0}
-                playerOpen={playerOpen}
-                setPlayerOpen={setPlayerOpen}
-              />
-            </section>
+              {activeTab === "library" && (
+                <div className="pt-12">
+                  <SectionHeading
+                    eyebrow="Your subjects"
+                    title="আজ কী পড়বে?"
+                    description="Choose a subject, then open notes and exam suggestions inside the app."
+                  />
+                  <SubjectGrid
+                    subjects={subjects}
+                    selectedSubject={selectedSubject}
+                    onSelect={(subject) => {
+                      setSelectedSubject(subject);
+                      setViewerMaterial(null);
+                    }}
+                  />
+                  <MaterialViewer
+                    subject={selectedSubject}
+                    materials={selectedMaterials}
+                    viewerMaterial={viewerMaterial}
+                    onOpen={setViewerMaterial}
+                    onClose={() => setViewerMaterial(null)}
+                  />
+                </div>
+              )}
 
-            <section id="subjects" className="scroll-mt-24 pt-16">
-              <SectionHeading
-                eyebrow="Your subjects"
-                title="আজ কী পড়বে?"
-                description="Choose a subject, then open notes and exam suggestions inside the app."
-              />
-              <SubjectGrid
-                subjects={subjects}
-                selectedSubject={selectedSubject}
-                onSelect={(subject) => {
-                  setSelectedSubject(subject);
-                  setViewerMaterial(null);
-                }}
-              />
-              <MaterialViewer
-                subject={selectedSubject}
-                materials={selectedMaterials}
-                viewerMaterial={viewerMaterial}
-                onOpen={setViewerMaterial}
-                onClose={() => setViewerMaterial(null)}
-              />
-            </section>
+              {activeTab === "live" && (
+                <div className="pt-12">
+                  <SectionHeading
+                    eyebrow="Live classroom"
+                    title="এখন শেখো, একসাথে"
+                    description="Join live revision classes without leaving SahajSkill."
+                  />
+                  <LiveClassPanel
+                    liveClass={liveClasses[0] ?? null}
+                    isDemo={apiLiveClasses.length === 0 && liveClasses.length > 0}
+                    playerOpen={playerOpen}
+                    setPlayerOpen={setPlayerOpen}
+                  />
+                </div>
+              )}
 
-            <section id="tests" className="scroll-mt-24 pt-16">
-              <SectionHeading
-                eyebrow="Mock test lab"
-                title="Practice. Score. Level up."
-                description="Timed MCQs, instant explanations, and XP for every correct answer."
-              />
-              <MockTestEngine tests={tests} onAwardXp={awardXp} leaderboard={leaderboard} />
-            </section>
+              {activeTab === "tests" && (
+                <div className="pt-12">
+                  <SectionHeading
+                    eyebrow="Mock test lab"
+                    title="Practice. Score. Level up."
+                    description="Timed MCQs, instant explanations, and XP for every correct answer."
+                  />
+                  <MockTestEngine
+                    tests={tests}
+                    onAwardXp={awardXp}
+                    leaderboard={leaderboard}
+                    leaderboardNote={leaderboardNote}
+                  />
+                </div>
+              )}
 
-            <section id="ai" className="scroll-mt-24 pt-16">
-              <SectionHeading
-                eyebrow="AI doubt solver"
-                title="বাংলা বা English-এ জিজ্ঞেস করো"
-                description="Ask vocational questions and get a clear, friendly explanation."
-              />
-              <AiChat />
-            </section>
-          </>
+              {activeTab === "ai" && (
+                <div className="pt-6">
+                  <AiChat />
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
         )}
       </div>
 
-      <Dock active={activeSection} onNavigate={(id) => {
-        setActiveSection(id);
-        scrollToSection(id);
-      }} />
+      <Dock active={activeTab} onNavigate={navigate} />
 
       <AnimatePresence>
         {forceUpdate && <ForceUpdateBlocker config={config} currentVersion={appVersion} />}
@@ -530,10 +632,10 @@ function NoticeMarquee({ text }: { text: string }) {
   );
 }
 
-function Header({ xp, source }: { xp: number; source?: string }) {
+function Header({ xp, source, onHome }: { xp: number; source?: string; onHome: () => void }) {
   return (
-    <header className={`${LIQUID_GLASS} flex items-center justify-between px-4 py-3 sm:px-5`}>
-      <button onClick={() => scrollToSection("home")} className="group flex items-center gap-3 text-left">
+    <header className={`${LIQUID_GLASS} relative z-30 flex items-center justify-between px-4 py-3 sm:px-5`}>
+      <button onClick={onHome} className="group flex items-center gap-3 text-left">
         <span className="grid h-11 w-11 place-items-center rounded-2xl border border-white/90 bg-gradient-to-br from-sky-100 to-indigo-100 shadow-[inset_0_1px_1px_rgba(255,255,255,0.95)]">
           <GraduationCap className="h-6 w-6 text-sky-700" />
         </span>
@@ -551,11 +653,129 @@ function Header({ xp, source }: { xp: number; source?: string }) {
         <div className="flex items-center gap-2 rounded-full border border-amber-300/60 bg-amber-300/10 px-3.5 py-2 text-sm font-bold text-amber-700 backdrop-blur-xl">
           <Zap className="h-4 w-4 fill-amber-300 text-amber-600" /> {xp} XP
         </div>
-        <div className="grid h-10 w-10 place-items-center rounded-full border border-slate-200/80 bg-slate-100/70">
-          <CircleUserRound className="h-5 w-5 text-slate-600" />
-        </div>
+        <AccountButton />
       </div>
     </header>
+  );
+}
+
+function AccountButton() {
+  const { data: session, status } = useSession();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const user = status === "authenticated" ? session?.user : undefined;
+  const isAdmin = isAdminSession(user);
+
+  if (!user) {
+    return (
+      <button
+        type="button"
+        onClick={() => void signIn("google")}
+        disabled={status === "loading"}
+        aria-label="Sign in with Google"
+        className="flex h-10 items-center gap-2 rounded-full border border-slate-200/80 bg-slate-100/70 px-2.5 text-xs font-semibold text-slate-700 transition hover:bg-white disabled:opacity-60 sm:px-3.5"
+      >
+        {status === "loading" ? (
+          <LoaderCircle className="h-5 w-5 animate-spin text-slate-500" />
+        ) : (
+          <LogIn className="h-5 w-5 text-slate-600" />
+        )}
+        <span className="hidden sm:inline">Sign in</span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="relative flex items-center gap-2">
+      {isAdmin && (
+        <Link
+          href="/admin"
+          className="hidden items-center gap-1.5 rounded-full bg-sky-600 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-sky-700 sm:flex"
+        >
+          <ShieldCheck className="h-4 w-4" /> Admin Panel
+        </Link>
+      )}
+      <button
+        type="button"
+        onClick={() => setMenuOpen((open) => !open)}
+        aria-label="Account menu"
+        aria-expanded={menuOpen}
+        className="grid h-10 w-10 place-items-center overflow-hidden rounded-full border border-slate-200/80 bg-slate-100/70"
+      >
+        {user.image ? (
+          <img src={user.image} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
+        ) : (
+          <CircleUserRound className="h-5 w-5 text-slate-600" />
+        )}
+      </button>
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            className={`${LIQUID_GLASS} absolute top-12 right-0 w-64 p-3`}
+          >
+            <div className="px-2 py-1.5">
+              <p className="truncate text-sm font-bold">{user.name ?? "SahajSkill student"}</p>
+              {user.email && <p className="truncate text-xs text-slate-500">{user.email}</p>}
+              <p className="mt-1 text-[10px] font-bold tracking-wider text-sky-600 uppercase">{isAdmin ? "Admin" : "Student"}</p>
+            </div>
+            {isAdmin && (
+              <Link
+                href="/admin"
+                onClick={() => setMenuOpen(false)}
+                className="mt-2 flex items-center gap-2 rounded-xl px-2 py-2.5 text-sm font-semibold text-sky-700 hover:bg-sky-50"
+              >
+                <ShieldCheck className="h-4 w-4" /> Admin Panel
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="mt-1 flex w-full items-center gap-2 rounded-xl px-2 py-2.5 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50"
+            >
+              <LogOut className="h-4 w-4" /> Sign out
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function QuickCards({ subjectCount, liveCount, testCount, onNavigate }: { subjectCount: number; liveCount: number; testCount: number; onNavigate: (tab: Tab) => void }) {
+  const cards: Array<{ tab: Tab; title: string; detail: string; Icon: typeof FileText; tone: string }> = [
+    { tab: "library", title: "Library", detail: `${subjectCount} subjects • Notes & Suggestions`, Icon: LibraryBig, tone: "from-sky-100 to-blue-100 text-sky-700" },
+    { tab: "live", title: "Live", detail: liveCount ? `${liveCount} class live now` : "No class live now", Icon: Radio, tone: "from-rose-100 to-pink-100 text-rose-700" },
+    { tab: "tests", title: "Tests", detail: `${testCount} mock tests • Earn XP`, Icon: Trophy, tone: "from-amber-100 to-orange-100 text-amber-700" },
+    { tab: "ai", title: "Ask AI", detail: "SahajSkill AI স্যার • বাংলা + English", Icon: Bot, tone: "from-indigo-100 to-violet-100 text-indigo-700" },
+  ];
+  return (
+    <div className="mt-14">
+      <p className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">Quick overview</p>
+      <h2 className="mt-2 mb-4 text-xl font-bold">কোথা থেকে শুরু করবে?</h2>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {cards.map(({ tab, title, detail, Icon, tone }) => (
+          <motion.button
+            key={tab}
+            type="button"
+            onClick={() => onNavigate(tab)}
+            whileHover={{ y: -4 }}
+            whileTap={{ scale: 0.98 }}
+            className={`${LIQUID_GLASS} group flex items-center gap-4 p-5 text-left transition hover:bg-white/90`}
+          >
+            <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br ${tone}`}>
+              <Icon className="h-6 w-6" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-bold">{title}</span>
+              <span className="mt-1 block truncate text-xs text-slate-500">{detail}</span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-1" />
+          </motion.button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -808,7 +1028,7 @@ function MaterialViewer({ subject, materials, viewerMaterial, onOpen, onClose }:
 /*                              Mock test engine                              */
 /* -------------------------------------------------------------------------- */
 
-function MockTestEngine({ tests, onAwardXp, leaderboard }: { tests: MockTest[]; onAwardXp: (points: number) => void; leaderboard: LeaderboardUser[] }) {
+function MockTestEngine({ tests, onAwardXp, leaderboard, leaderboardNote }: { tests: MockTest[]; onAwardXp: (points: number) => void; leaderboard: LeaderboardUser[]; leaderboardNote: string }) {
   const [activeTest, setActiveTest] = useState<MockTest | null>(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
@@ -872,17 +1092,17 @@ function MockTestEngine({ tests, onAwardXp, leaderboard }: { tests: MockTest[]; 
           </div>
         ) : <p className="text-sm text-slate-500">This test has no valid questions.</p>}
       </GlassCard>
-      <Leaderboard users={leaderboard} />
+      <Leaderboard users={leaderboard} note={leaderboardNote} />
     </div>
   );
 }
 
-function Leaderboard({ users }: { users: LeaderboardUser[] }) {
+function Leaderboard({ users, note, onViewAll }: { users: LeaderboardUser[]; note: string; onViewAll?: () => void }) {
   return (
     <GlassCard className="h-fit p-5">
-      <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-amber-400/12 text-amber-700"><Trophy className="h-5 w-5" /></span><div><h3 className="font-bold">Leaderboard</h3><p className="text-[11px] text-slate-500">Top learners by XP</p></div></div>
+      <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-amber-400/12 text-amber-700"><Trophy className="h-5 w-5" /></span><div><h3 className="font-bold">Leaderboard</h3><p className="text-[11px] text-slate-500">Top learners by XP</p></div></div>{onViewAll && <button type="button" onClick={onViewAll} className="flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/70 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-white">View full leaderboard <ChevronRight className="h-3.5 w-3.5" /></button>}</div>
       <div className="mt-5 space-y-2">{users.map((user, index) => <div key={user.id} className={`flex items-center gap-3 rounded-xl p-3 ${user.id === "local-student" ? "border border-sky-300/45 bg-sky-400/[0.07]" : "bg-white/60"}`}><span className={`grid h-7 w-7 place-items-center rounded-full text-xs font-black ${index === 0 ? "bg-amber-300 text-amber-950" : index === 1 ? "bg-slate-300 text-slate-900" : index === 2 ? "bg-orange-400 text-orange-950" : "bg-slate-100/70 text-slate-500"}`}>{index + 1}</span><span className="grid h-8 w-8 place-items-center overflow-hidden rounded-full bg-slate-100/70">{user.avatar_url ? <img src={user.avatar_url} alt="" className="h-full w-full object-cover" /> : <CircleUserRound className="h-4 w-4 text-slate-500" />}</span><span className="min-w-0 flex-1 truncate text-xs font-semibold">{user.name}</span><span className="text-xs font-bold text-amber-700">{user.xp_points}</span></div>)}</div>
-      <p className="mt-4 text-center text-[10px] leading-4 text-slate-400">Your XP is saved on this device until student accounts are connected.</p>
+      <p className="mt-4 text-center text-[10px] leading-4 text-slate-400">{note}</p>
     </GlassCard>
   );
 }
@@ -892,15 +1112,19 @@ function Leaderboard({ users }: { users: LeaderboardUser[] }) {
 /* -------------------------------------------------------------------------- */
 
 function AiChat() {
-  const [messages, setMessages] = useState<ChatMessage[]>([{ role: "assistant", content: "নমস্কার! 👋 আমি SahajSkill AI Teacher। ETIT, EDCA, Physics, Chemistry বা Math নিয়ে বাংলা বা English-এ প্রশ্ন করো।" }]);
+  const [messages, setMessages] = useState<ChatMessage[]>([{ role: "assistant", content: "নমস্কার! আমি SahajSkill AI স্যার। WBSCTVESD Class 11 ও Class 12-এর ETIT, EDCA, Physics, Chemistry বা Math থেকে যেকোনো প্রশ্ন করো। আমি সহজ বাংলায়, পয়েন্ট করে, উদাহরণ আর পরীক্ষার সাজেশন সহ বুঝিয়ে দেব।" }]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  useEffect(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), [messages]);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    const message = input.trim();
+  // Scroll only the message container to the latest message, never the page.
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (container) container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+  }, [messages, sending]);
+
+  async function sendMessage(text: string) {
+    const message = text.trim();
     if (!message || sending) return;
     const previous = messages;
     setMessages([...previous, { role: "user", content: message }]); setInput(""); setSending(true);
@@ -914,12 +1138,55 @@ function AiChat() {
     } finally { setSending(false); }
   }
 
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    void sendMessage(input);
+  }
+
   return (
-    <GlassCard className="overflow-hidden">
-      <div className="flex items-center justify-between border-b border-slate-200/60 bg-gradient-to-r from-indigo-50/80 to-sky-50/80 p-5"><div className="flex items-center gap-3"><span className="relative grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 shadow-lg shadow-indigo-500/20"><Bot className="h-6 w-6 text-white" /><span className="absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-400" /></span><div><h3 className="font-bold">SahajSkill AI Teacher</h3><p className="text-xs text-emerald-600">Ready • বাংলা + English</p></div></div><Sparkles className="h-5 w-5 text-indigo-600" /></div>
-      <div className="h-[430px] overflow-y-auto p-4 sm:p-6"><div className="mx-auto max-w-3xl space-y-4">{messages.map((message, index) => <motion.div key={`${message.role}-${index}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}><div className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[75%] ${message.role === "user" ? "rounded-br-md bg-gradient-to-br from-blue-500 to-indigo-600 text-white" : "rounded-bl-md border border-white/90 bg-white/85 text-[#0F172A] shadow-[0_4px_20px_rgb(14,165,233,0.06),inset_0_1px_1px_rgba(255,255,255,0.95)]"}`}>{message.content}</div></motion.div>)}{sending && <div className="flex items-center gap-2 text-xs text-slate-500"><LoaderCircle className="h-4 w-4 animate-spin text-indigo-600" /> উত্তর ভাবছি...</div>}<div ref={bottomRef} /></div></div>
-      <form onSubmit={submit} className="p-4 pt-2 sm:p-5 sm:pt-2"><div className={`${FLOATING_PILL} mx-auto flex max-w-3xl items-center gap-2 py-1.5 pr-1.5 pl-3 transition focus-within:border-sky-300`}><Sparkles className="h-4 w-4 shrink-0 text-indigo-500" /><textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} rows={1} placeholder="তোমার প্রশ্ন লিখো... Ask anything" className="max-h-28 min-h-11 flex-1 resize-none bg-transparent px-2 py-3 text-sm text-[#0F172A] outline-none placeholder:text-slate-400" /><button disabled={!input.trim() || sending} aria-label="Send question" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0284C7] to-[#4F46E5] text-white shadow-[0_6px_20px_rgba(79,70,229,0.25)] transition hover:opacity-90 disabled:opacity-30"><Send className="h-4 w-4" /></button></div><p className="mt-2 text-center text-[10px] text-slate-400">AI can make mistakes. Verify important exam answers with your teacher.</p></form>
-    </GlassCard>
+    <div className="flex min-h-[calc(100vh-9rem)] flex-col justify-between">
+      <div className="shrink-0">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="relative grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-[#0284C7] to-[#4F46E5] shadow-lg shadow-indigo-500/20"><Bot className="h-6 w-6 text-white" /><span className="absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-400" /></span>
+            <div>
+              <h2 className="text-lg font-black tracking-tight sm:text-xl">SahajSkill AI স্যার</h2>
+              <p className="text-xs text-emerald-600">{sending ? "উত্তর লিখছি..." : "Online • WBSCTVESD Class 11 & 12 • বাংলা + English"}</p>
+            </div>
+          </div>
+          <Sparkles className="h-5 w-5 text-indigo-600" />
+        </div>
+        <div className="-mx-4 mt-5 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+          {AI_PROMPT_CHIPS.map((chip) => (
+            <button
+              key={chip}
+              type="button"
+              disabled={sending}
+              onClick={() => void sendMessage(chip)}
+              className={`${FLOATING_PILL} shrink-0 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-700 disabled:opacity-50`}
+            >
+              {chip}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div ref={scrollRef} className="mt-5 max-h-[calc(100dvh-20rem)] min-h-[16rem] flex-1 overflow-y-auto overscroll-contain pb-36">
+        <div className="mx-auto max-w-3xl space-y-4">
+          {messages.map((message, index) => <motion.div key={`${message.role}-${index}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}><div className={`max-w-[88%] whitespace-pre-wrap rounded-3xl px-4 py-3 text-sm leading-6 sm:max-w-[75%] ${message.role === "user" ? "rounded-br-md bg-gradient-to-br from-blue-500 to-indigo-600 text-white" : "rounded-bl-md border border-white/90 bg-white/85 text-[#0F172A] shadow-[0_4px_20px_rgb(14,165,233,0.06),inset_0_1px_1px_rgba(255,255,255,0.95)] backdrop-blur-2xl"}`}>{message.content}</div></motion.div>)}
+          {sending && <div className="flex items-center gap-2 text-xs text-slate-500"><LoaderCircle className="h-4 w-4 animate-spin text-indigo-600" /> উত্তর ভাবছি...</div>}
+        </div>
+      </div>
+
+      <form onSubmit={submit} className="fixed inset-x-0 bottom-24 z-30 px-4 sm:bottom-28">
+        <div className={`${FLOATING_PILL} mx-auto flex max-w-3xl items-center gap-2 py-1.5 pr-1.5 pl-4 transition focus-within:border-sky-300`}>
+          <Sparkles className="h-4 w-4 shrink-0 text-indigo-500" />
+          <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} rows={1} placeholder="SahajSkill AI স্যারকে প্রশ্ন করো... Ask anything" className="max-h-28 min-h-11 flex-1 resize-none bg-transparent px-2 py-3 text-sm text-[#0F172A] outline-none placeholder:text-slate-400" />
+          <button disabled={!input.trim() || sending} aria-label="Send question" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0284C7] to-[#4F46E5] text-white shadow-[0_6px_20px_rgba(79,70,229,0.25)] transition hover:opacity-90 disabled:opacity-30"><Send className="h-4 w-4" /></button>
+        </div>
+        <p className="mt-1.5 text-center text-[10px] text-slate-400">AI can make mistakes. Verify important exam answers with your teacher.</p>
+      </form>
+    </div>
   );
 }
 
@@ -927,9 +1194,9 @@ function AiChat() {
 /*                               Dock & states                                */
 /* -------------------------------------------------------------------------- */
 
-function Dock({ active, onNavigate }: { active: SectionId; onNavigate: (id: SectionId) => void }) {
-  const items: Array<{ id: SectionId; label: string; Icon: typeof Home }> = [
-    { id: "home", label: "Home", Icon: Home }, { id: "subjects", label: "Library", Icon: LibraryBig }, { id: "live", label: "Live", Icon: MonitorPlay }, { id: "tests", label: "Tests", Icon: Trophy }, { id: "ai", label: "Ask AI", Icon: MessageCircleQuestion },
+function Dock({ active, onNavigate }: { active: Tab; onNavigate: (id: Tab) => void }) {
+  const items: Array<{ id: Tab; label: string; Icon: typeof Home }> = [
+    { id: "home", label: "Home", Icon: Home }, { id: "library", label: "Library", Icon: LibraryBig }, { id: "live", label: "Live", Icon: MonitorPlay }, { id: "tests", label: "Tests", Icon: Trophy }, { id: "ai", label: "Ask AI", Icon: MessageCircleQuestion },
   ];
   // Active state is shown only by the sliding pill: no scale, no translate, no dot.
   return (
