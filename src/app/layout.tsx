@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -17,6 +17,16 @@ export const metadata: Metadata = {
   title: "SahajSkill",
   description:
     "WBSCTVESD Vocational Class 11 & 12 learning: notes, live classes, mock tests and AI doubt solver.",
+};
+
+// resizes-content: the on-screen keyboard shrinks the layout (and 100dvh), so
+// the Ask AI input stays visible above it. Zoom stays allowed for accessibility.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

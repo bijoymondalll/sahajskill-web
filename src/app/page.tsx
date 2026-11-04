@@ -489,11 +489,18 @@ export default function HomePage() {
   const chat = useAiChat();
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-gradient-to-b from-[#FFFFFF] to-[#F8FAFC] font-sans text-[#0F172A] selection:bg-sky-200">
+    <main className="relative min-h-dvh overflow-hidden bg-gradient-to-b from-[#FFFFFF] to-[#F8FAFC] font-sans text-[#0F172A] selection:bg-sky-200">
       <AmbientBackground />
-      <NoticeMarquee text={config.notice_banner} />
+      {/* The Ask AI tab needs every pixel on a phone, so no marquee there. */}
+      {activeTab !== "ai" && <NoticeMarquee text={config.notice_banner} />}
 
-      <div className="relative z-10 mx-auto max-w-7xl px-4 pb-36 pt-7 sm:px-6 lg:px-8">
+      <div
+        className={`relative z-10 mx-auto max-w-7xl px-3 sm:px-6 lg:px-8 ${
+          activeTab === "ai"
+            ? "pt-2 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:pt-3 sm:pb-24"
+            : "pt-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:pt-7 sm:pb-36"
+        }`}
+      >
         <Header xp={studentXp} source={content?.source} onHome={() => navigate("home")} />
 
         {showLoadNotice && activeTab !== "ai" && (
@@ -517,7 +524,7 @@ export default function HomePage() {
               transition={{ duration: 0.22 }}
             >
               {activeTab === "home" && (
-                <div className="pt-12 sm:pt-16">
+                <div className="pt-6 sm:pt-16">
                   <Hero selectedClass={selectedClass} onExplore={() => navigate("library")} />
                   <ClassSelector
                     classes={visibleClasses}
@@ -535,7 +542,7 @@ export default function HomePage() {
                     testCount={tests.length}
                     onNavigate={navigate}
                   />
-                  <div className="mt-14">
+                  <div className="mt-8 sm:mt-14">
                     <Leaderboard
                       users={leaderboard.slice(0, 5)}
                       note={leaderboardNote}
@@ -546,7 +553,7 @@ export default function HomePage() {
               )}
 
               {activeTab === "library" && (
-                <div className="pt-12">
+                <div className="pt-5 sm:pt-12">
                   <SectionHeading
                     eyebrow="Your subjects"
                     title="আজ কী পড়বে?"
@@ -572,7 +579,7 @@ export default function HomePage() {
               )}
 
               {activeTab === "live" && (
-                <div className="pt-12">
+                <div className="pt-5 sm:pt-12">
                   <SectionHeading
                     eyebrow="Live classroom"
                     title="এখন শেখো, একসাথে"
@@ -588,7 +595,7 @@ export default function HomePage() {
               )}
 
               {activeTab === "tests" && (
-                <div className="pt-12">
+                <div className="pt-5 sm:pt-12">
                   <SectionHeading
                     eyebrow="Mock test lab"
                     title="Practice. Score. Level up."
@@ -605,7 +612,7 @@ export default function HomePage() {
               )}
 
               {activeTab === "ai" && (
-                <div className="pt-6">
+                <div className="pt-2 sm:pt-3">
                   <AiChat chat={chat} />
                 </div>
               )}
@@ -613,8 +620,6 @@ export default function HomePage() {
           </AnimatePresence>
         )}
       </div>
-
-      {activeTab === "ai" && <AiInputBar chat={chat} />}
 
       <Dock active={activeTab} onNavigate={navigate} />
 
@@ -641,9 +646,9 @@ function AmbientBackground() {
 
 function NoticeMarquee({ text }: { text: string }) {
   return (
-    <div className="relative z-20 overflow-hidden border-b border-white/90 bg-white/70 py-2.5 shadow-[inset_0_-1px_0_rgba(226,232,240,0.7)] backdrop-blur-2xl">
+    <div className="relative z-20 overflow-hidden border-b border-white/90 bg-white/70 py-1.5 shadow-[inset_0_-1px_0_rgba(226,232,240,0.7)] sm:py-2.5 backdrop-blur-2xl">
       <motion.div
-        className="flex w-max items-center gap-12 whitespace-nowrap text-xs font-semibold tracking-[0.18em] text-sky-700 uppercase"
+        className="flex w-max items-center gap-12 whitespace-nowrap text-[11px] font-semibold tracking-[0.14em] sm:text-xs sm:tracking-[0.18em] text-sky-700 uppercase"
         animate={{ x: ["0%", "-50%"] }}
         transition={{ duration: 24, repeat: Infinity, ease: "linear" }}
       >
@@ -659,24 +664,24 @@ function NoticeMarquee({ text }: { text: string }) {
 
 function Header({ xp, source, onHome }: { xp: number; source?: string; onHome: () => void }) {
   return (
-    <header className={`${LIQUID_GLASS} relative z-30 flex items-center justify-between px-4 py-3 sm:px-5`}>
-      <button onClick={onHome} className="group flex items-center gap-3 text-left">
-        <span className="grid h-11 w-11 place-items-center rounded-2xl border border-white/90 bg-gradient-to-br from-sky-100 to-indigo-100 shadow-[inset_0_1px_1px_rgba(255,255,255,0.95)]">
-          <GraduationCap className="h-6 w-6 text-sky-700" />
+    <header className={`${LIQUID_GLASS} relative z-30 flex items-center justify-between gap-2 px-3 py-2 sm:px-5 sm:py-3`}>
+      <button onClick={onHome} className="group flex min-w-0 items-center gap-2 text-left sm:gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/90 bg-gradient-to-br from-sky-100 to-indigo-100 shadow-[inset_0_1px_1px_rgba(255,255,255,0.95)] sm:h-11 sm:w-11 sm:rounded-2xl">
+          <GraduationCap className="h-5 w-5 text-sky-700 sm:h-6 sm:w-6" />
         </span>
-        <span>
-          <span className="block text-lg font-bold tracking-tight">SahajSkill</span>
-          <span className="block text-[10px] tracking-[0.22em] text-slate-500 uppercase">VocaLearn AI</span>
+        <span className="min-w-0">
+          <span className="block truncate text-base font-bold tracking-tight sm:text-lg">SahajSkill</span>
+          <span className="hidden text-[10px] tracking-[0.22em] text-slate-500 uppercase sm:block">VocaLearn AI</span>
         </span>
       </button>
-      <div className="flex items-center gap-2.5">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
         {source && (
           <span className="hidden rounded-full border border-slate-200/80 bg-slate-100/70 px-3 py-2 text-[10px] font-semibold tracking-wider text-slate-600 uppercase sm:block">
             {source === "turso" ? "Live data" : "Demo data"}
           </span>
         )}
-        <div className="flex items-center gap-2 rounded-full border border-amber-300/60 bg-amber-300/10 px-3.5 py-2 text-sm font-bold text-amber-700 backdrop-blur-xl">
-          <Zap className="h-4 w-4 fill-amber-300 text-amber-600" /> {xp} XP
+        <div className="flex items-center gap-1.5 rounded-full border border-amber-300/60 bg-amber-300/10 px-2.5 py-1.5 text-xs font-bold whitespace-nowrap text-amber-700 backdrop-blur-xl sm:gap-2 sm:px-3.5 sm:py-2 sm:text-sm">
+          <Zap className="h-3.5 w-3.5 fill-amber-300 text-amber-600 sm:h-4 sm:w-4" /> {xp} XP
         </div>
         <AccountButton />
       </div>
@@ -697,7 +702,7 @@ function AccountButton() {
         onClick={() => void signIn("google")}
         disabled={status === "loading"}
         aria-label="Sign in with Google"
-        className="flex h-10 items-center gap-2 rounded-full border border-slate-200/80 bg-slate-100/70 px-2.5 text-xs font-semibold text-slate-700 transition hover:bg-white disabled:opacity-60 sm:px-3.5"
+        className="flex h-9 items-center gap-2 rounded-full border border-slate-200/80 bg-slate-100/70 px-2 text-xs font-semibold text-slate-700 transition hover:bg-white disabled:opacity-60 sm:h-10 sm:px-3.5"
       >
         {status === "loading" ? (
           <LoaderCircle className="h-5 w-5 animate-spin text-slate-500" />
@@ -724,7 +729,7 @@ function AccountButton() {
         onClick={() => setMenuOpen((open) => !open)}
         aria-label="Account menu"
         aria-expanded={menuOpen}
-        className="grid h-10 w-10 place-items-center overflow-hidden rounded-full border border-slate-200/80 bg-slate-100/70"
+        className="grid h-9 w-9 place-items-center overflow-hidden rounded-full border border-slate-200/80 bg-slate-100/70 sm:h-10 sm:w-10"
       >
         {user.image ? (
           <img src={user.image} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
@@ -738,7 +743,7 @@ function AccountButton() {
             initial={{ opacity: 0, y: -6, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
-            className={`${LIQUID_GLASS} absolute top-12 right-0 w-64 p-3`}
+            className={`${LIQUID_GLASS} absolute top-11 right-0 w-64 max-w-[calc(100vw-1.5rem)] p-3 sm:top-12`}
           >
             <div className="px-2 py-1.5">
               <p className="truncate text-sm font-bold">{user.name ?? "SahajSkill student"}</p>
@@ -776,10 +781,10 @@ function QuickCards({ subjectCount, liveCount, testCount, onNavigate }: { subjec
     { tab: "ai", title: "Ask AI", detail: "SahajSkill AI স্যার • বাংলা + English", Icon: Bot, tone: "from-indigo-100 to-violet-100 text-indigo-700" },
   ];
   return (
-    <div className="mt-14">
+    <div className="mt-8 sm:mt-14">
       <p className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">Quick overview</p>
-      <h2 className="mt-2 mb-4 text-xl font-bold">কোথা থেকে শুরু করবে?</h2>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <h2 className="mt-1.5 mb-3 text-lg font-bold sm:mt-2 sm:mb-4 sm:text-xl">কোথা থেকে শুরু করবে?</h2>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {cards.map(({ tab, title, detail, Icon, tone }) => (
           <motion.button
             key={tab}
@@ -787,16 +792,16 @@ function QuickCards({ subjectCount, liveCount, testCount, onNavigate }: { subjec
             onClick={() => onNavigate(tab)}
             whileHover={{ y: -4 }}
             whileTap={{ scale: 0.98 }}
-            className={`${LIQUID_GLASS} group flex items-center gap-4 p-5 text-left transition hover:bg-white/90`}
+            className={`${LIQUID_GLASS} group flex min-w-0 flex-col items-start gap-2.5 p-3.5 text-left transition hover:bg-white/90 sm:flex-row sm:items-center sm:gap-4 sm:p-5`}
           >
-            <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br ${tone}`}>
-              <Icon className="h-6 w-6" />
+            <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-br sm:h-12 sm:w-12 ${tone}`}>
+              <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block font-bold">{title}</span>
-              <span className="mt-1 block truncate text-xs text-slate-500">{detail}</span>
+              <span className="block text-sm font-bold sm:text-base">{title}</span>
+              <span className="mt-1 line-clamp-2 text-[11px] leading-4 text-slate-500 sm:block sm:truncate sm:text-xs">{detail}</span>
             </span>
-            <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-1" />
+            <ChevronRight className="hidden h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-1 sm:block" />
           </motion.button>
         ))}
       </div>
@@ -806,30 +811,30 @@ function QuickCards({ subjectCount, liveCount, testCount, onNavigate }: { subjec
 
 function Hero({ selectedClass, onExplore }: { selectedClass?: ClassItem; onExplore: () => void }) {
   return (
-    <div className="grid items-center gap-10 lg:grid-cols-[1.15fr_.85fr]">
+    <div className="grid items-center gap-6 sm:gap-10 lg:grid-cols-[1.15fr_.85fr]">
       <motion.div initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55 }}>
-        <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-sky-300/60 bg-sky-400/10 px-3.5 py-2 text-xs font-semibold text-sky-700">
+        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-sky-300/60 bg-sky-400/10 px-3 py-1.5 text-[11px] font-semibold text-sky-700 sm:mb-5 sm:px-3.5 sm:py-2 sm:text-xs">
           <Sparkles className="h-3.5 w-3.5" /> Made for WBSCTVESD students
         </div>
-        <h1 className="max-w-3xl text-4xl leading-[1.08] font-black tracking-[-0.045em] sm:text-6xl lg:text-7xl">
+        <h1 className="max-w-3xl text-3xl leading-[1.1] font-black tracking-[-0.04em] sm:text-6xl sm:leading-[1.08] sm:tracking-[-0.045em] lg:text-7xl">
           Vocational learning,
           <span className="block bg-gradient-to-r from-[#0284C7] via-blue-600 to-[#4F46E5] bg-clip-text text-transparent">
             এবার আরও সহজ।
           </span>
         </h1>
-        <p className="mt-6 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
+        <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-600 sm:mt-6 sm:text-lg sm:leading-7">
           Notes, live classes, mock tests and an AI teacher in one calm study space, built for Bengali and English learners.
         </p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <button onClick={onExplore} className="group flex items-center gap-2 rounded-2xl bg-sky-600 px-5 py-3.5 text-sm font-bold text-white transition hover:bg-sky-700">
+        <div className="mt-5 flex flex-wrap gap-2.5 sm:mt-8 sm:gap-3">
+          <button onClick={onExplore} className="group flex items-center gap-2 rounded-2xl bg-sky-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-sky-700 sm:px-5 sm:py-3.5">
             Start learning <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
           </button>
-          <div className={`${FLOATING_PILL} flex items-center gap-2 px-5 py-3.5 text-sm text-[#475569]`}>
+          <div className={`${FLOATING_PILL} flex min-w-0 items-center gap-2 px-4 py-3 text-sm text-[#475569] sm:px-5 sm:py-3.5`}>
             <BookOpen className="h-4 w-4 text-sky-600" /> {selectedClass?.title ?? "Choose your class"}
           </div>
         </div>
       </motion.div>
-      <motion.div initial={{ opacity: 0, scale: 0.94, rotate: 2 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} transition={{ duration: 0.65, delay: 0.08 }}>
+      <motion.div className="hidden sm:block" initial={{ opacity: 0, scale: 0.94, rotate: 2 }} animate={{ opacity: 1, scale: 1, rotate: 0 }} transition={{ duration: 0.65, delay: 0.08 }}>
         <GlassCard className="relative overflow-hidden p-5 sm:p-7">
           <div className="absolute inset-0 bg-gradient-to-br from-sky-100/60 via-transparent to-indigo-100/60" />
           <div className="relative">
@@ -863,15 +868,15 @@ function Hero({ selectedClass, onExplore }: { selectedClass?: ClassItem; onExplo
 
 function ClassSelector({ classes, selectedId, onSelect }: { classes: ClassItem[]; selectedId: string; onSelect: (item: ClassItem) => void }) {
   return (
-    <div className="mt-14">
-      <div className="mb-4 flex items-end justify-between">
-        <div>
+    <div className="mt-8 sm:mt-14">
+      <div className="mb-3 flex items-end justify-between gap-3 sm:mb-4">
+        <div className="min-w-0">
           <p className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">Class selector</p>
-          <h2 className="mt-2 text-xl font-bold">তোমার ক্লাস বেছে নাও</h2>
+          <h2 className="mt-1.5 text-lg font-bold sm:mt-2 sm:text-xl">তোমার ক্লাস বেছে নাও</h2>
         </div>
-        <span className="text-xs text-slate-500">Controlled by Admin</span>
+        <span className="hidden text-xs text-slate-500 sm:inline">Controlled by Admin</span>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
         {classes.map((item, index) => {
           const locked = item.status !== "ACTIVE";
           const selected = item.id === selectedId;
@@ -885,23 +890,23 @@ function ClassSelector({ classes, selectedId, onSelect }: { classes: ClassItem[]
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.08 }}
               whileHover={locked ? undefined : { y: -4 }}
-              className={`relative overflow-hidden rounded-[1.65rem] border p-5 text-left backdrop-blur-2xl transition ${
+              className={`relative overflow-hidden rounded-[1.65rem] border p-4 text-left sm:p-5 backdrop-blur-2xl transition ${
                 selected
                   ? "border-sky-300 bg-sky-50/80 shadow-[0_8px_30px_rgb(14,165,233,0.12),inset_0_1px_1px_rgba(255,255,255,0.95)]"
                   : "border-white/90 bg-white/75 shadow-[0_8px_30px_rgb(14,165,233,0.07),inset_0_1px_1px_rgba(255,255,255,0.95)] hover:bg-white/90"
               } ${locked ? "cursor-not-allowed opacity-60" : ""}`}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <span className={`grid h-12 w-12 place-items-center rounded-2xl ${locked ? "bg-slate-100/70" : "bg-gradient-to-br from-sky-100 to-blue-100"}`}>
+              <div className="flex items-start justify-between gap-3 sm:gap-4">
+                <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+                  <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl sm:h-12 sm:w-12 ${locked ? "bg-slate-100/70" : "bg-gradient-to-br from-sky-100 to-blue-100"}`}>
                     {locked ? <LockKeyhole className="h-5 w-5 text-slate-600" /> : <GraduationCap className="h-6 w-6 text-sky-700" />}
                   </span>
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-bold">{item.title}</p>
                     <p className="mt-1 text-xs text-slate-500">{item.subtitle}</p>
                   </div>
                 </div>
-                <span className={`rounded-full px-2.5 py-1 text-[9px] font-black tracking-wider ${locked ? "bg-amber-300/10 text-amber-700" : "bg-emerald-400/10 text-emerald-700"}`}>
+                <span className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-black tracking-wider ${locked ? "bg-amber-300/10 text-amber-700" : "bg-emerald-400/10 text-emerald-700"}`}>
                   {locked ? "COMING SOON" : selected ? "SELECTED" : "ACTIVE"}
                 </span>
               </div>
@@ -915,10 +920,10 @@ function ClassSelector({ classes, selectedId, onSelect }: { classes: ClassItem[]
 
 function SectionHeading({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
   return (
-    <div className="mb-7 max-w-2xl">
+    <div className="mb-5 max-w-2xl sm:mb-7">
       <p className="text-xs font-bold tracking-[0.2em] text-sky-600 uppercase">{eyebrow}</p>
-      <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">{title}</h2>
-      <p className="mt-3 text-sm leading-6 text-slate-500 sm:text-base">{description}</p>
+      <h2 className="mt-1.5 text-2xl font-black tracking-tight sm:mt-2 sm:text-4xl">{title}</h2>
+      <p className="mt-2 text-sm leading-6 text-slate-500 sm:mt-3 sm:text-base">{description}</p>
     </div>
   );
 }
@@ -930,7 +935,7 @@ function SectionHeading({ eyebrow, title, description }: { eyebrow: string; titl
 function LiveClassPanel({ liveClass, isDemo, playerOpen, setPlayerOpen }: { liveClass: LiveClass | null; isDemo: boolean; playerOpen: boolean; setPlayerOpen: (open: boolean) => void }) {
   if (!liveClass) {
     return (
-      <GlassCard className="flex min-h-48 items-center justify-center p-8 text-center">
+      <GlassCard className="flex min-h-40 items-center justify-center p-6 text-center sm:min-h-48 sm:p-8">
         <div><Video className="mx-auto h-8 w-8 text-slate-400" /><p className="mt-4 font-bold">No class is live right now</p><p className="mt-2 text-sm text-slate-500">পরের ক্লাসের আপডেট এখানে দেখাবে।</p></div>
       </GlassCard>
     );
@@ -942,7 +947,7 @@ function LiveClassPanel({ liveClass, isDemo, playerOpen, setPlayerOpen }: { live
   return (
     <GlassCard className="overflow-hidden">
       <div className="relative grid gap-0 lg:grid-cols-[.82fr_1.18fr]">
-        <div className="relative flex min-h-72 flex-col justify-between overflow-hidden p-6 sm:p-8">
+        <div className="relative flex min-h-56 flex-col justify-between overflow-hidden p-5 sm:min-h-72 sm:p-8">
           <div className="absolute inset-0 bg-gradient-to-br from-rose-100/70 via-transparent to-indigo-100/60" />
           <div className="relative">
             <div className="flex flex-wrap items-center gap-2">
@@ -952,11 +957,11 @@ function LiveClassPanel({ liveClass, isDemo, playerOpen, setPlayerOpen }: { live
               </span>
               {isDemo && <DemoBadge />}
             </div>
-            <p className="mt-7 text-sm font-semibold text-rose-700">{liveClass.subject_name}</p>
-            <h3 className="mt-2 text-2xl font-black sm:text-3xl">{liveClass.title}</h3>
+            <p className="mt-5 text-sm font-semibold text-rose-700 sm:mt-7">{liveClass.subject_name}</p>
+            <h3 className="mt-2 text-xl font-black break-words sm:text-3xl">{liveClass.title}</h3>
             <p className="mt-3 text-sm text-slate-500">with {liveClass.teacher_name}</p>
           </div>
-          <div className="relative mt-8 flex flex-wrap gap-3">
+          <div className="relative mt-6 flex flex-wrap gap-3 sm:mt-8">
             {isMeet ? (
               <a href={liveClass.stream_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-3 text-sm font-bold text-white hover:bg-sky-700">
                 Join Google Meet <ExternalLink className="h-4 w-4" />
@@ -968,12 +973,12 @@ function LiveClassPanel({ liveClass, isDemo, playerOpen, setPlayerOpen }: { live
             )}
           </div>
         </div>
-        <div className="grid min-h-72 place-items-center border-t border-slate-200/80 bg-white/60 p-3 lg:border-t-0 lg:border-l">
+        <div className="grid min-h-48 place-items-center border-t border-slate-200/80 bg-white/60 p-3 sm:min-h-72 lg:border-t-0 lg:border-l">
           {playerOpen && youtubeEmbed ? (
             <iframe className="aspect-video w-full rounded-2xl" src={youtubeEmbed} title={liveClass.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
           ) : (
             <button onClick={() => youtubeEmbed && setPlayerOpen(true)} className="group flex flex-col items-center text-slate-500">
-              <span className="grid h-20 w-20 place-items-center rounded-full border border-white/90 bg-white/85 shadow-[0_10px_40px_rgba(56,189,248,0.12)] transition group-hover:bg-white"><Play className="h-7 w-7 fill-sky-600 text-sky-600" /></span>
+              <span className="grid h-16 w-16 place-items-center rounded-full border border-white/90 bg-white/85 sm:h-20 sm:w-20 shadow-[0_10px_40px_rgba(56,189,248,0.12)] transition group-hover:bg-white"><Play className="h-7 w-7 fill-sky-600 text-sky-600" /></span>
               <span className="mt-4 text-sm">{isMeet ? "Google Meet opens in a new tab" : "Open embedded classroom"}</span>
             </button>
           )}
@@ -988,21 +993,21 @@ function LiveClassPanel({ liveClass, isDemo, playerOpen, setPlayerOpen }: { live
 /* -------------------------------------------------------------------------- */
 
 function SubjectGrid({ subjects, selectedSubject, onSelect }: { subjects: Subject[]; selectedSubject: Subject | null; onSelect: (subject: Subject) => void }) {
-  if (!subjects.length) return <GlassCard className="p-8 text-center text-sm text-slate-500">No active subjects have been added for this class yet.</GlassCard>;
+  if (!subjects.length) return <GlassCard className="p-6 text-center text-sm text-slate-500 sm:p-8">No active subjects have been added for this class yet.</GlassCard>;
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
       {subjects.map((subject, index) => {
         const { Icon, gradient } = subjectVisual(subject.trade_code, index);
         const selected = selectedSubject?.id === subject.id;
         return (
-          <motion.button key={subject.id} onClick={() => onSelect(subject)} whileHover={{ y: -6 }} whileTap={{ scale: 0.98 }} className={`group rounded-3xl border p-5 text-left backdrop-blur-2xl transition ${selected ? "border-sky-300 bg-sky-50/80 shadow-[0_8px_30px_rgb(14,165,233,0.12),inset_0_1px_1px_rgba(255,255,255,0.95)]" : "border-white/90 bg-white/75 shadow-[0_8px_30px_rgb(14,165,233,0.07),inset_0_1px_1px_rgba(255,255,255,0.95)] hover:bg-white/90"}`}>
+          <motion.button key={subject.id} onClick={() => onSelect(subject)} whileHover={{ y: -6 }} whileTap={{ scale: 0.98 }} className={`group min-w-0 rounded-3xl border p-4 text-left backdrop-blur-2xl sm:p-5 transition ${selected ? "border-sky-300 bg-sky-50/80 shadow-[0_8px_30px_rgb(14,165,233,0.12),inset_0_1px_1px_rgba(255,255,255,0.95)]" : "border-white/90 bg-white/75 shadow-[0_8px_30px_rgb(14,165,233,0.07),inset_0_1px_1px_rgba(255,255,255,0.95)] hover:bg-white/90"}`}>
             {subject.icon_url ? (
-              <img src={subject.icon_url} alt="" className="h-12 w-12 rounded-2xl object-cover" />
+              <img src={subject.icon_url} alt="" className="h-10 w-10 rounded-2xl object-cover sm:h-12 sm:w-12" />
             ) : (
-              <span className={`grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br ${gradient} shadow-lg`}><Icon className="h-6 w-6 text-white" /></span>
+              <span className={`grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br sm:h-12 sm:w-12 ${gradient} shadow-lg`}><Icon className="h-5 w-5 text-white sm:h-6 sm:w-6" /></span>
             )}
-            <p className="mt-6 line-clamp-2 font-bold">{subject.name}</p>
-            <div className="mt-3 flex items-center justify-between text-xs text-slate-500"><span>{subject.trade_code ?? "Subject"}</span><ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></div>
+            <p className="mt-4 line-clamp-2 text-sm font-bold break-words sm:mt-6 sm:text-base">{subject.name}</p>
+            <div className="mt-2 flex items-center justify-between text-xs text-slate-500 sm:mt-3"><span className="truncate">{subject.trade_code ?? "Subject"}</span><ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></div>
           </motion.button>
         );
       })}
@@ -1015,17 +1020,17 @@ function MaterialViewer({ subject, materials, isDemo, viewerMaterial, onOpen, on
   return (
     <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="mt-5">
       <GlassCard className="overflow-hidden">
-        <div className="flex flex-col gap-4 border-b border-slate-200/80 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div><p className="text-xs font-semibold text-sky-600">{subject.trade_code}</p><h3 className="mt-1 text-lg font-bold">{subject.name} Library</h3></div>
+        <div className="flex flex-col gap-3 border-b border-slate-200/80 p-4 sm:flex-row sm:gap-4 sm:p-5 sm:items-center sm:justify-between">
+          <div className="min-w-0"><p className="text-xs font-semibold text-sky-600">{subject.trade_code}</p><h3 className="mt-1 text-base font-bold break-words sm:text-lg">{subject.name} Library</h3></div>
           <span className="flex items-center gap-2 text-xs text-slate-500">{isDemo && <DemoBadge />}{materials.length} resources</span>
         </div>
         {materials.length ? (
-          <div className="grid gap-3 p-4 md:grid-cols-2">
+          <div className="grid gap-2.5 p-3 sm:gap-3 sm:p-4 md:grid-cols-2">
             {materials.map((material) => (
-              <button key={material.id} onClick={() => onOpen(material)} className="flex items-center gap-4 rounded-2xl border border-slate-200/80 bg-white/60 p-4 text-left transition hover:border-sky-300/75 hover:bg-slate-100">
+              <button key={material.id} onClick={() => onOpen(material)} className="flex min-w-0 items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/60 p-3 text-left transition hover:border-sky-300/75 sm:gap-4 sm:p-4 hover:bg-slate-100">
                 <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${material.category === "SUGGESTION" ? "bg-amber-400/12 text-amber-700" : "bg-sky-400/12 text-sky-700"}`}><FileText className="h-5 w-5" /></span>
                 <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{material.title}</span><span className="mt-1 block text-[10px] font-bold tracking-wider text-slate-500 uppercase">{material.category}{material.is_important ? " • Important" : ""}</span></span>
-                <Maximize2 className="h-4 w-4 text-slate-400" />
+                <Maximize2 className="h-4 w-4 shrink-0 text-slate-400" />
               </button>
             ))}
           </div>
@@ -1035,12 +1040,12 @@ function MaterialViewer({ subject, materials, isDemo, viewerMaterial, onOpen, on
       <AnimatePresence>
         {viewerMaterial && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-            <GlassCard className="mt-5 overflow-hidden">
-              <div className="flex items-center justify-between border-b border-slate-200/80 p-4">
+            <GlassCard className="mt-4 overflow-hidden sm:mt-5">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 p-3 sm:p-4">
                 <div className="min-w-0"><p className="truncate text-sm font-bold">{viewerMaterial.title}</p><p className="mt-1 text-[10px] text-slate-500">IN-APP VIEWER</p></div>
-                <div className="flex gap-2"><a href={viewerMaterial.file_url} target="_blank" rel="noreferrer" aria-label="Open in new tab" className="rounded-xl border border-slate-200/80 p-2 text-slate-600 hover:bg-slate-100"><ExternalLink className="h-4 w-4" /></a><button onClick={onClose} aria-label="Close viewer" className="rounded-xl border border-slate-200/80 p-2 text-slate-600 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
+                <div className="flex shrink-0 gap-2"><a href={viewerMaterial.file_url} target="_blank" rel="noreferrer" aria-label="Open in new tab" className="rounded-xl border border-slate-200/80 p-2 text-slate-600 hover:bg-slate-100"><ExternalLink className="h-4 w-4" /></a><button onClick={onClose} aria-label="Close viewer" className="rounded-xl border border-slate-200/80 p-2 text-slate-600 hover:bg-slate-100"><X className="h-4 w-4" /></button></div>
               </div>
-              <iframe src={viewerMaterial.file_url} title={viewerMaterial.title} className="h-[68vh] min-h-[480px] w-full bg-white" allow="autoplay" />
+              <iframe src={viewerMaterial.file_url} title={viewerMaterial.title} className="h-[60dvh] min-h-[320px] w-full bg-white sm:h-[68vh] sm:min-h-[480px]" allow="autoplay" />
             </GlassCard>
           </motion.div>
         )}
@@ -1108,25 +1113,25 @@ function MockTestEngine({ tests, isDemo, run, leaderboard, leaderboardNote }: { 
 
   return (
     <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
-      <GlassCard className="min-h-[460px] p-5 sm:p-7">
+      <GlassCard className="min-h-0 p-4 sm:min-h-[460px] sm:p-7">
         {!activeTest ? (
           <div>
             <div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-2xl bg-indigo-400/12 text-indigo-700"><BrainCircuit className="h-5 w-5" /></span><div><h3 className="flex items-center gap-2 font-bold">Available tests {isDemo && <DemoBadge />}</h3><p className="text-xs text-slate-500">10 XP for each correct answer</p></div></div>
-            <div className="mt-6 space-y-3">{tests.map((test) => { const count = parseQuestions(test.questions_json).length; return <button key={test.id} disabled={!count} onClick={() => start(test)} className="flex w-full items-center gap-4 rounded-2xl border border-slate-200/80 bg-white/60 p-4 text-left transition hover:border-indigo-300/75 hover:bg-slate-100 disabled:opacity-40"><span className="grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600"><Play className="h-5 w-5 fill-white" /></span><span className="flex-1"><span className="block font-semibold">{test.title}</span><span className="mt-1 block text-xs text-slate-500">{count} questions • {test.duration_minutes} min</span></span><ChevronRight className="h-4 w-4 text-slate-400" /></button>; })}</div>
+            <div className="mt-4 space-y-2.5 sm:mt-6 sm:space-y-3">{tests.map((test) => { const count = parseQuestions(test.questions_json).length; return <button key={test.id} disabled={!count} onClick={() => start(test)} className="flex w-full items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/60 p-3 text-left transition hover:border-indigo-300/75 sm:gap-4 sm:p-4 hover:bg-slate-100 disabled:opacity-40"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 sm:h-12 sm:w-12"><Play className="h-5 w-5 fill-white" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold break-words sm:text-base">{test.title}</span><span className="mt-1 block text-xs text-slate-500">{count} questions • {test.duration_minutes} min</span></span><ChevronRight className="h-4 w-4 shrink-0 text-slate-400" /></button>; })}</div>
           </div>
         ) : submitted ? (
           <div>
-            <button onClick={reset} className="mb-6 flex items-center gap-2 text-xs text-slate-500 hover:text-slate-900"><ArrowLeft className="h-4 w-4" /> All tests</button>
+            <button onClick={reset} className="mb-4 flex items-center sm:mb-6 gap-2 text-xs text-slate-500 hover:text-slate-900"><ArrowLeft className="h-4 w-4" /> All tests</button>
             <div className="text-center"><span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-emerald-400/12 text-emerald-700"><Trophy className="h-9 w-9" /></span><p className="mt-5 text-xs font-bold tracking-widest text-emerald-600 uppercase">Test complete</p><h3 className="mt-2 text-4xl font-black">{score}/{questions.length}</h3><p className="mt-2 text-sm text-amber-700">+{score * 10} XP earned</p></div>
-            <div className="mt-8 space-y-3">{questions.map((q, index) => { const correct = answers[index] === answerIndex(q); return <div key={index} className={`rounded-2xl border p-4 ${correct ? "border-emerald-400/20 bg-emerald-400/[0.07]" : "border-rose-400/20 bg-rose-400/[0.07]"}`}><div className="flex gap-3">{correct ? <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /> : <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" />}<div><p className="text-sm font-semibold">{q.q}</p><p className="mt-2 text-xs text-slate-600">Correct: {q.options[answerIndex(q)]}</p>{q.explanation && <p className="mt-2 text-xs leading-5 text-slate-500">{q.explanation}</p>}</div></div></div>; })}</div>
+            <div className="mt-6 space-y-3 sm:mt-8">{questions.map((q, index) => { const correct = answers[index] === answerIndex(q); return <div key={index} className={`rounded-2xl border p-4 ${correct ? "border-emerald-400/20 bg-emerald-400/[0.07]" : "border-rose-400/20 bg-rose-400/[0.07]"}`}><div className="flex gap-3">{correct ? <Check className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" /> : <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" />}<div className="min-w-0"><p className="text-sm font-semibold break-words">{q.q}</p><p className="mt-2 text-xs text-slate-600">Correct: {q.options[answerIndex(q)]}</p>{q.explanation && <p className="mt-2 text-xs leading-5 text-slate-500">{q.explanation}</p>}</div></div></div>; })}</div>
           </div>
         ) : questions.length ? (
           <div>
             <div className="flex items-center justify-between"><button onClick={reset} className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-900"><ArrowLeft className="h-4 w-4" /> Exit</button><span className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold ${timeLeft < 30 ? "bg-rose-400/12 text-rose-700" : "bg-slate-100/70 text-slate-600"}`}><Clock3 className="h-3.5 w-3.5" /> {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, "0")}</span></div>
-            <div className="mt-6 h-1.5 overflow-hidden rounded-full bg-slate-100/70"><motion.div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-500" animate={{ width: `${((questionIndex + 1) / questions.length) * 100}%` }} /></div>
-            <p className="mt-7 text-xs font-bold tracking-wider text-indigo-600 uppercase">Question {questionIndex + 1} of {questions.length}</p><h3 className="mt-3 text-xl leading-8 font-bold sm:text-2xl">{questions[questionIndex].q}</h3>
-            <div className="mt-6 grid gap-3">{questions[questionIndex].options.map((option, optionIndex) => <button key={optionIndex} onClick={() => setAnswers((current) => ({ ...current, [questionIndex]: optionIndex }))} className={`flex items-center gap-4 rounded-2xl border p-4 text-left text-sm transition ${answers[questionIndex] === optionIndex ? "border-sky-300/100 bg-sky-400/10 text-sky-800" : "border-slate-200/80 bg-white/60 text-slate-600 hover:bg-slate-100"}`}><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold ${answers[questionIndex] === optionIndex ? "bg-sky-600 text-white" : "bg-slate-100/70 text-slate-600"}`}>{String.fromCharCode(65 + optionIndex)}</span>{option}</button>)}</div>
-            <div className="mt-7 flex justify-between"><button disabled={questionIndex === 0} onClick={() => setQuestionIndex((index) => index - 1)} className="flex items-center gap-2 rounded-xl border border-slate-200/80 px-4 py-2.5 text-sm text-slate-600 disabled:opacity-30"><ArrowLeft className="h-4 w-4" /> Back</button>{questionIndex === questions.length - 1 ? <button onClick={finishTest} className="rounded-xl bg-emerald-400 px-5 py-2.5 text-sm font-bold text-emerald-950">Submit test</button> : <button onClick={() => setQuestionIndex((index) => index + 1)} className="flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-bold text-white">Next <ArrowRight className="h-4 w-4" /></button>}</div>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full sm:mt-6 bg-slate-100/70"><motion.div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-500" animate={{ width: `${((questionIndex + 1) / questions.length) * 100}%` }} /></div>
+            <p className="mt-5 text-xs font-bold tracking-wider text-indigo-600 uppercase sm:mt-7">Question {questionIndex + 1} of {questions.length}</p><h3 className="mt-2 text-lg leading-7 font-bold break-words sm:mt-3 sm:text-2xl sm:leading-8">{questions[questionIndex].q}</h3>
+            <div className="mt-4 grid gap-2.5 sm:mt-6 sm:gap-3">{questions[questionIndex].options.map((option, optionIndex) => <button key={optionIndex} onClick={() => setAnswers((current) => ({ ...current, [questionIndex]: optionIndex }))} className={`flex items-center gap-3 rounded-2xl border p-3.5 text-left text-sm break-words transition sm:gap-4 sm:p-4 ${answers[questionIndex] === optionIndex ? "border-sky-300/100 bg-sky-400/10 text-sky-800" : "border-slate-200/80 bg-white/60 text-slate-600 hover:bg-slate-100"}`}><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold ${answers[questionIndex] === optionIndex ? "bg-sky-600 text-white" : "bg-slate-100/70 text-slate-600"}`}>{String.fromCharCode(65 + optionIndex)}</span>{option}</button>)}</div>
+            <div className="mt-5 flex justify-between gap-3 sm:mt-7"><button disabled={questionIndex === 0} onClick={() => setQuestionIndex((index) => index - 1)} className="flex items-center gap-2 rounded-xl border border-slate-200/80 px-4 py-2.5 text-sm text-slate-600 disabled:opacity-30"><ArrowLeft className="h-4 w-4" /> Back</button>{questionIndex === questions.length - 1 ? <button onClick={finishTest} className="rounded-xl bg-emerald-400 px-5 py-2.5 text-sm font-bold text-emerald-950">Submit test</button> : <button onClick={() => setQuestionIndex((index) => index + 1)} className="flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-bold text-white">Next <ArrowRight className="h-4 w-4" /></button>}</div>
           </div>
         ) : <p className="text-sm text-slate-500">This test has no valid questions.</p>}
       </GlassCard>
@@ -1137,9 +1142,9 @@ function MockTestEngine({ tests, isDemo, run, leaderboard, leaderboardNote }: { 
 
 function Leaderboard({ users, note, onViewAll }: { users: LeaderboardUser[]; note: string; onViewAll?: () => void }) {
   return (
-    <GlassCard className="h-fit p-5">
-      <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-amber-400/12 text-amber-700"><Trophy className="h-5 w-5" /></span><div><h3 className="font-bold">Leaderboard</h3><p className="text-[11px] text-slate-500">Top learners by XP</p></div></div>{onViewAll && <button type="button" onClick={onViewAll} className="flex items-center gap-1 rounded-full border border-slate-200/80 bg-white/70 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-white">View full leaderboard <ChevronRight className="h-3.5 w-3.5" /></button>}</div>
-      <div className="mt-5 space-y-2">{users.map((user, index) => <div key={user.id} className={`flex items-center gap-3 rounded-xl p-3 ${user.id === "local-student" ? "border border-sky-300/45 bg-sky-400/[0.07]" : "bg-white/60"}`}><span className={`grid h-7 w-7 place-items-center rounded-full text-xs font-black ${index === 0 ? "bg-amber-300 text-amber-950" : index === 1 ? "bg-slate-300 text-slate-900" : index === 2 ? "bg-orange-400 text-orange-950" : "bg-slate-100/70 text-slate-500"}`}>{index + 1}</span><span className="grid h-8 w-8 place-items-center overflow-hidden rounded-full bg-slate-100/70">{user.avatar_url ? <img src={user.avatar_url} alt="" className="h-full w-full object-cover" /> : <CircleUserRound className="h-4 w-4 text-slate-500" />}</span><span className="min-w-0 flex-1 truncate text-xs font-semibold">{user.name}</span><span className="text-xs font-bold text-amber-700">{user.xp_points}</span></div>)}</div>
+    <GlassCard className="h-fit p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-400/12 text-amber-700"><Trophy className="h-5 w-5" /></span><div><h3 className="font-bold">Leaderboard</h3><p className="text-[11px] text-slate-500">Top learners by XP</p></div></div>{onViewAll && <button type="button" onClick={onViewAll} className="flex shrink-0 items-center gap-1 rounded-full border border-slate-200/80 bg-white/70 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-white"><span className="sm:hidden">সব দেখো</span><span className="hidden sm:inline">View full leaderboard</span> <ChevronRight className="h-3.5 w-3.5" /></button>}</div>
+      <div className="mt-4 space-y-2 sm:mt-5">{users.map((user, index) => <div key={user.id} className={`flex items-center gap-2.5 rounded-xl p-2.5 sm:gap-3 sm:p-3 ${user.id === "local-student" ? "border border-sky-300/45 bg-sky-400/[0.07]" : "bg-white/60"}`}><span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-black ${index === 0 ? "bg-amber-300 text-amber-950" : index === 1 ? "bg-slate-300 text-slate-900" : index === 2 ? "bg-orange-400 text-orange-950" : "bg-slate-100/70 text-slate-500"}`}>{index + 1}</span><span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-slate-100/70">{user.avatar_url ? <img src={user.avatar_url} alt="" className="h-full w-full object-cover" /> : <CircleUserRound className="h-4 w-4 text-slate-500" />}</span><span className="min-w-0 flex-1 truncate text-xs font-semibold">{user.name}</span><span className="text-xs font-bold text-amber-700">{user.xp_points}</span></div>)}</div>
       <p className="mt-4 text-center text-[10px] leading-4 text-slate-400">{note}</p>
     </GlassCard>
   );
@@ -1191,75 +1196,137 @@ type AiChatState = ReturnType<typeof useAiChat>;
 /** Max characters per question; matches MAX_MESSAGE_CHARS in /api/ai. */
 const AI_MESSAGE_MAX_CHARS = 2000;
 
+/**
+ * Ask AI view: one column bounded by the dynamic viewport (100dvh) so the
+ * header, the scrollable message list and the input all fit on a phone screen
+ * above the dock, also while the on-screen keyboard is open (the viewport
+ * uses interactive-widget=resizes-content, see layout.tsx). The offsets match
+ * the page top padding, the header and the dock height.
+ */
 function AiChat({ chat }: { chat: AiChatState }) {
   const { messages, sending, sendMessage } = chat;
   const scrollRef = useRef<HTMLDivElement>(null);
+  const hasUserMessage = messages.some((message) => message.role === "user");
 
   // Scroll only the message container to the latest message, never the page.
-  useEffect(() => {
+  const scrollToBottom = useCallback(() => {
     const container = scrollRef.current;
     if (container) container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-  }, [messages, sending]);
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, sending, scrollToBottom]);
 
   return (
-    <div className="flex min-h-[calc(100vh-9rem)] flex-col justify-between">
-      <div className="shrink-0">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className="relative grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-[#0284C7] to-[#4F46E5] shadow-lg shadow-indigo-500/20"><Bot className="h-6 w-6 text-white" /><span className="absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-400" /></span>
-            <div>
-              <h2 className="text-lg font-black tracking-tight sm:text-xl">SahajSkill AI স্যার</h2>
-              <p className="text-xs text-emerald-600">{sending ? "উত্তর লিখছি..." : "Online • WBSCTVESD Class 11 & 12 • বাংলা + English"}</p>
-            </div>
+    <section aria-label="SahajSkill AI chat" className="flex h-[calc(100dvh-9.5rem-env(safe-area-inset-bottom))] min-h-[10rem] flex-col sm:h-[calc(100dvh-12rem)]">
+      <div className="flex shrink-0 items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+          <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#0284C7] to-[#4F46E5] shadow-lg shadow-indigo-500/20 sm:h-12 sm:w-12 sm:rounded-2xl"><Bot className="h-5 w-5 text-white sm:h-6 sm:w-6" /><span className="absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-400 sm:h-3 sm:w-3" /></span>
+          <div className="min-w-0">
+            <h2 className="truncate text-base leading-tight font-black tracking-tight sm:text-xl">SahajSkill AI স্যার</h2>
+            <p className="truncate text-[11px] text-emerald-600 sm:text-xs">{sending ? "উত্তর লিখছি..." : "Online • WBSCTVESD Class 11 & 12 • বাংলা + English"}</p>
           </div>
-          <Sparkles className="h-5 w-5 text-indigo-600" />
         </div>
-        <div className="-mx-4 mt-5 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+        <Sparkles className="hidden h-5 w-5 shrink-0 text-indigo-600 sm:block" />
+      </div>
+
+      {!hasUserMessage && (
+        <div className="-mx-3 mt-2 flex shrink-0 gap-1.5 overflow-x-auto px-3 pb-1 [scrollbar-width:none] sm:mx-0 sm:mt-4 sm:flex-wrap sm:gap-2 sm:px-0">
           {AI_PROMPT_CHIPS.map((chip) => (
             <button
               key={chip}
               type="button"
               disabled={sending}
               onClick={() => void sendMessage(chip)}
-              className={`${FLOATING_PILL} shrink-0 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-700 disabled:opacity-50`}
+              className={`${FLOATING_PILL} shrink-0 px-3 py-1.5 text-[11px] font-semibold whitespace-nowrap text-slate-700 transition hover:border-sky-300 hover:text-sky-700 disabled:opacity-50 sm:px-4 sm:py-2 sm:text-xs`}
             >
               {chip}
             </button>
           ))}
         </div>
-      </div>
+      )}
 
-      <div ref={scrollRef} className="mt-5 max-h-[calc(100dvh-20rem)] min-h-[16rem] flex-1 overflow-y-auto overscroll-contain pb-36">
-        <div className="mx-auto max-w-3xl space-y-4">
-          {messages.map((message, index) => <motion.div key={`${message.role}-${index}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}><div className={`max-w-[88%] whitespace-pre-wrap rounded-3xl px-4 py-3 text-sm leading-6 sm:max-w-[75%] ${message.role === "user" ? "rounded-br-md bg-gradient-to-br from-blue-500 to-indigo-600 text-white" : "rounded-bl-md border border-white/90 bg-white/85 text-[#0F172A] shadow-[0_4px_20px_rgb(14,165,233,0.06),inset_0_1px_1px_rgba(255,255,255,0.95)] backdrop-blur-2xl"}`}>{message.content}</div></motion.div>)}
+      <div ref={scrollRef} className="mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2 sm:mt-4">
+        <div className="mx-auto max-w-3xl space-y-3 sm:space-y-4">
+          {messages.map((message, index) => <motion.div key={`${message.role}-${index}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}><div className={`max-w-[88%] min-w-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-3xl px-3.5 py-2.5 text-sm leading-6 sm:max-w-[75%] sm:px-4 sm:py-3 ${message.role === "user" ? "rounded-br-md bg-gradient-to-br from-blue-500 to-indigo-600 text-white" : "rounded-bl-md border border-white/90 bg-white/85 text-[#0F172A] shadow-[0_4px_20px_rgb(14,165,233,0.06),inset_0_1px_1px_rgba(255,255,255,0.95)] backdrop-blur-2xl"}`}>{message.content}</div></motion.div>)}
           {sending && <div className="flex items-center gap-2 text-xs text-slate-500"><LoaderCircle className="h-4 w-4 animate-spin text-indigo-600" /> উত্তর ভাবছি...</div>}
         </div>
       </div>
-    </div>
+
+      <AiInputBar chat={chat} onActivity={scrollToBottom} />
+    </section>
   );
 }
 
+/** Same glass look as FLOATING_PILL, with a radius that suits a multi-line input. */
+const AI_INPUT_SURFACE =
+  "rounded-[1.75rem] border border-slate-200/80 bg-white/85 shadow-[0_10px_40px_rgba(56,189,248,0.12)] backdrop-blur-2xl";
+
 /**
- * Fixed pill input bar for the Ask AI view. Rendered by HomePage outside the
- * animated tab wrapper so its `position: fixed` is relative to the viewport,
- * not to the transformed motion.div during the tab transition.
+ * Input for the Ask AI view. Sits in normal flow at the bottom of the chat
+ * column (never position: fixed), so the dock or another layer can't cover it.
  */
-function AiInputBar({ chat }: { chat: AiChatState }) {
+function AiInputBar({ chat, onActivity }: { chat: AiChatState; onActivity: () => void }) {
   const { input, setInput, sending, sendMessage } = chat;
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-grow from one row up to max-h-32 (128px), then scroll inside.
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 128)}px`;
+  }, [input]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    if (!input.trim() || sending) return;
     void sendMessage(input);
+    textareaRef.current?.focus();
+    onActivity();
   }
 
   return (
-    <form onSubmit={submit} className="fixed inset-x-0 bottom-24 z-30 px-4 sm:bottom-28">
-      <div className={`${FLOATING_PILL} mx-auto flex max-w-3xl items-center gap-2 py-1.5 pr-1.5 pl-4 transition focus-within:border-sky-300`}>
-        <Sparkles className="h-4 w-4 shrink-0 text-indigo-500" />
-        <textarea value={input} maxLength={AI_MESSAGE_MAX_CHARS} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} rows={1} placeholder="SahajSkill AI স্যারকে প্রশ্ন করো... Ask anything" className="max-h-28 min-h-11 flex-1 resize-none bg-transparent px-2 py-3 text-sm text-[#0F172A] outline-none placeholder:text-slate-400" />
-        <button disabled={!input.trim() || sending} aria-label="Send question" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0284C7] to-[#4F46E5] text-white shadow-[0_6px_20px_rgba(79,70,229,0.25)] transition hover:opacity-90 disabled:opacity-30"><Send className="h-4 w-4" /></button>
+    <form onSubmit={submit} className="shrink-0 pt-2">
+      <div className={`${AI_INPUT_SURFACE} mx-auto flex max-w-3xl items-end gap-1.5 py-1 pr-1 pl-3.5 transition focus-within:border-sky-300 sm:gap-2 sm:py-1.5 sm:pr-1.5 sm:pl-4`}>
+        <Sparkles className="mb-3.5 hidden h-4 w-4 shrink-0 text-indigo-500 sm:block" />
+        <textarea
+          ref={textareaRef}
+          value={input}
+          maxLength={AI_MESSAGE_MAX_CHARS}
+          onChange={(event) => setInput(event.target.value)}
+          onKeyDown={(event) => {
+            // Enter sends, Shift+Enter adds a new line. Ignore Enter while an
+            // IME (e.g. a Bengali keyboard) is still composing a word.
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
+          onFocus={() => {
+            // The keyboard opens after focus; scroll again once it has resized the view.
+            onActivity();
+            window.setTimeout(onActivity, 300);
+          }}
+          rows={1}
+          enterKeyHint="send"
+          aria-label="AI স্যারকে প্রশ্ন লেখো"
+          placeholder="প্রশ্ন লেখো... Ask anything"
+          className="max-h-32 min-h-11 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-1 py-2.5 text-base leading-6 text-[#0F172A] outline-none placeholder:text-slate-400 sm:px-2 sm:text-sm"
+        />
+        <button
+          type="submit"
+          disabled={!input.trim() || sending}
+          // Keep focus (and the on-screen keyboard) in the textarea when tapping send.
+          onMouseDown={(event) => event.preventDefault()}
+          aria-label="প্রশ্ন পাঠাও"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0284C7] to-[#4F46E5] text-white shadow-[0_6px_20px_rgba(79,70,229,0.25)] transition hover:opacity-90 disabled:opacity-30"
+        >
+          {sending ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+        </button>
       </div>
-      <p className="mt-1.5 text-center text-[10px] text-slate-400">AI can make mistakes. Verify important exam answers with your teacher.</p>
+      <p className="mt-1 hidden text-center text-[10px] text-slate-400 sm:block">AI can make mistakes. Verify important exam answers with your teacher.</p>
     </form>
   );
 }
@@ -1272,10 +1339,11 @@ function Dock({ active, onNavigate }: { active: Tab; onNavigate: (id: Tab) => vo
   const items: Array<{ id: Tab; label: string; Icon: typeof Home }> = [
     { id: "home", label: "Home", Icon: Home }, { id: "library", label: "Library", Icon: LibraryBig }, { id: "live", label: "Live", Icon: MonitorPlay }, { id: "tests", label: "Tests", Icon: Trophy }, { id: "ai", label: "Ask AI", Icon: MessageCircleQuestion },
   ];
+  // Mobile: full-width bar with 5 equal items (fits 320px). sm+: centered floating pill.
   // Active state is shown only by the sliding pill: no scale, no translate, no dot.
   return (
-    <nav aria-label="Main navigation" className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2 sm:bottom-6">
-      <div className="flex items-center gap-1 rounded-full border border-white/90 bg-white/80 px-3 py-2 shadow-[0_12px_40px_rgba(15,23,42,0.08)] backdrop-blur-2xl">
+    <nav aria-label="Main navigation" className="fixed inset-x-3 bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-40 sm:inset-x-auto sm:bottom-6 sm:left-1/2 sm:-translate-x-1/2">
+      <div className="flex items-center gap-0.5 rounded-full border border-white/90 bg-white/80 px-1 py-1.5 shadow-[0_12px_40px_rgba(15,23,42,0.08)] backdrop-blur-2xl sm:gap-1 sm:px-3 sm:py-2">
         {items.map(({ id, label, Icon }) => {
           const isActive = active === id;
           return (
@@ -1285,7 +1353,7 @@ function Dock({ active, onNavigate }: { active: Tab; onNavigate: (id: Tab) => vo
               onClick={() => onNavigate(id)}
               aria-label={label}
               aria-current={isActive ? "page" : undefined}
-              className={`relative flex min-w-14 flex-col items-center gap-0.5 rounded-full px-3 py-1.5 text-[10px] transition-colors duration-200 sm:min-w-16 ${isActive ? "font-semibold text-sky-700" : "font-medium text-[#475569] hover:text-[#0F172A]"}`}
+              className={`relative flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-full px-1 py-1.5 text-[10px] transition-colors duration-200 sm:min-w-16 sm:flex-none sm:px-3 ${isActive ? "font-semibold text-sky-700" : "font-medium text-[#475569] hover:text-[#0F172A]"}`}
             >
               {isActive && (
                 <motion.span
@@ -1296,7 +1364,7 @@ function Dock({ active, onNavigate }: { active: Tab; onNavigate: (id: Tab) => vo
                 />
               )}
               <Icon className="relative h-5 w-5" />
-              <span className="relative leading-none">{label}</span>
+              <span className="relative leading-none whitespace-nowrap">{label}</span>
             </button>
           );
         })}
@@ -1309,11 +1377,11 @@ function ForceUpdateBlocker({ config, currentVersion }: { config: AppConfig; cur
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] grid place-items-center bg-[#F8FAFC]/80 p-4 backdrop-blur-3xl">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,#E0F2FE,#EEF2FF_40%,transparent_65%)] opacity-60 blur-3xl" />
-      <motion.div initial={{ scale: 0.92, y: 24 }} animate={{ scale: 1, y: 0 }} transition={{ type: "spring", stiffness: 160, damping: 20 }} className={`${LIQUID_GLASS} relative w-full max-w-md p-7 text-center sm:p-9`}>
-        <span className="mx-auto grid h-20 w-20 place-items-center rounded-[1.7rem] bg-gradient-to-br from-[#0284C7] to-[#4F46E5] shadow-xl shadow-sky-500/20"><RefreshCw className="h-9 w-9 text-white" /></span>
-        <p className="mt-6 text-xs font-bold tracking-[0.2em] text-sky-600 uppercase">Update required</p><h2 className="mt-3 text-3xl font-black">নতুন version এসেছে</h2><p className="mt-4 text-sm leading-6 text-slate-600">{config.update_message}</p>
+      <motion.div initial={{ scale: 0.92, y: 24 }} animate={{ scale: 1, y: 0 }} transition={{ type: "spring", stiffness: 160, damping: 20 }} className={`${LIQUID_GLASS} relative w-full max-w-md p-6 text-center sm:p-9`}>
+        <span className="mx-auto grid h-16 w-16 place-items-center rounded-[1.4rem] sm:h-20 sm:w-20 sm:rounded-[1.7rem] bg-gradient-to-br from-[#0284C7] to-[#4F46E5] shadow-xl shadow-sky-500/20"><RefreshCw className="h-9 w-9 text-white" /></span>
+        <p className="mt-5 text-xs font-bold tracking-[0.2em] text-sky-600 uppercase sm:mt-6">Update required</p><h2 className="mt-3 text-2xl font-black sm:text-3xl">নতুন version এসেছে</h2><p className="mt-4 text-sm leading-6 text-slate-600">{config.update_message}</p>
         <div className="mt-6 flex justify-center gap-3 text-xs text-slate-500"><span>Current {currentVersion}</span><span>•</span><span>Required {config.min_required_version}</span></div>
-        <a href={config.update_url} className="mt-7 flex w-full items-center justify-center gap-2 rounded-2xl bg-sky-600 px-5 py-4 text-sm font-black text-white transition hover:bg-sky-700">Update SahajSkill <ExternalLink className="h-4 w-4" /></a>
+        <a href={config.update_url} className="mt-6 flex w-full sm:mt-7 items-center justify-center gap-2 rounded-2xl bg-sky-600 px-5 py-4 text-sm font-black text-white transition hover:bg-sky-700">Update SahajSkill <ExternalLink className="h-4 w-4" /></a>
         <p className="mt-4 flex items-center justify-center gap-2 text-[10px] text-slate-400"><AlertTriangle className="h-3.5 w-3.5" /> This update is required to continue.</p>
       </motion.div>
     </motion.div>
@@ -1332,7 +1400,7 @@ function DemoBadge() {
 /** Compact notice shown when /api/content failed and demo content is shown. */
 function DemoNotice({ retrying, onRetry, onDismiss }: { retrying: boolean; onRetry: () => void; onDismiss: () => void }) {
   return (
-    <div role="status" className="mt-3 flex items-center gap-2 rounded-2xl border border-amber-300/60 bg-amber-50/90 px-3 py-2 text-xs text-amber-800 backdrop-blur-xl">
+    <div role="status" className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-amber-300/60 bg-amber-50/90 px-3 py-2 text-xs text-amber-800 backdrop-blur-xl">
       <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
       <p className="min-w-0 flex-1 leading-5">সার্ভার থেকে ডেটা আনা যায়নি, এখন ডেমো কনটেন্ট দেখানো হচ্ছে।</p>
       <button type="button" onClick={onRetry} disabled={retrying} className="flex shrink-0 items-center gap-1 rounded-full bg-amber-600 px-3 py-1.5 font-bold text-white transition hover:bg-amber-700 disabled:opacity-60">
