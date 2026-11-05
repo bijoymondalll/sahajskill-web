@@ -6,10 +6,11 @@ import GoogleProvider from "next-auth/providers/google";
  *
  * - Google OAuth via GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET.
  * - JWT sessions signed with NEXTAUTH_SECRET.
- * - On sign-in, the user is upserted into the Turso `users` table. The role
- *   is 'admin' when the email matches NEXT_PUBLIC_ADMIN_EMAIL, otherwise
- *   'student'. The env var is the single source of truth: changing it demotes
- *   the previous admin on their next sign-in or session refresh.
+ * - On sign-in, the user is inserted into the Turso `users` table (INSERT OR
+ *   IGNORE). A failing DB sync is logged and never blocks the login.
+ * - The role is 'admin' when the email matches NEXT_PUBLIC_ADMIN_EMAIL,
+ *   otherwise 'student'. The env var is the single source of truth: changing
+ *   it demotes the previous admin on their next sign-in or session refresh.
  * - The session exposes `user.id`, `user.role` and `user.xp_points`.
  */
 
@@ -38,7 +39,13 @@ async function getDb() {
   return db;
 }
 
-async function upsertUser(params: {
+/**
+ * Insert the Google user into `users` (id, name, email, image -> avatar_url).
+ * INSERT OR IGNORE skips existing rows (id or email conflict) instead of
+ * throwing. The effective role always comes from isAdminEmail() in the jwt
+ * callback, so the stored role is informational only.
+ */
+async function syncUser(params: {
   id: string;
   name: string;
   email: string;
@@ -47,12 +54,8 @@ async function upsertUser(params: {
 }): Promise<void> {
   const db = await getDb();
   await db.execute({
-    sql: `INSERT INTO users (id, name, email, avatar_url, role)
-          VALUES (?, ?, ?, ?, ?)
-          ON CONFLICT(email) DO UPDATE SET
-            name = excluded.name,
-            avatar_url = excluded.avatar_url,
-            role = excluded.role`,
+    sql: `INSERT OR IGNORE INTO users (id, name, email, avatar_url, role)
+          VALUES (?, ?, ?, ?, ?)`,
     args: [params.id, params.name, params.email, params.avatarUrl, params.role],
   });
 }
@@ -85,11 +88,13 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   callbacks: {
     async signIn({ user, profile }) {
-      const email = user.email?.trim().toLowerCase();
-      if (!email || !isTursoConfigured()) return true;
-
+      // The Turso sync is best effort: any failure is logged and the user is
+      // still allowed to sign in.
       try {
-        await upsertUser({
+        const email = user.email?.trim().toLowerCase();
+        if (!email || !isTursoConfigured()) return true;
+
+        await syncUser({
           id: profile?.sub ?? user.id ?? crypto.randomUUID(),
           name: user.name ?? email.split("@")[0],
           email,
@@ -97,8 +102,7 @@ export const authOptions: NextAuthOptions = {
           role: isAdminEmail(email) ? "admin" : "student",
         });
       } catch (err) {
-        // DB problems must never block sign-in.
-        console.error("[auth] user sync failed:", err);
+        console.error("[auth] Turso user sync failed, allowing sign-in:", err);
       }
       return true;
     },

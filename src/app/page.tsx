@@ -1177,10 +1177,12 @@ function useAiChat() {
     try {
       const response = await fetch("/api/ai", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, history: previous.slice(-8) }), signal: controller.signal });
       const raw = await response.text();
-      let data: { reply?: unknown; error?: unknown } | null = null;
+      let data: { text?: unknown; error?: unknown } | null = null;
       try { data = JSON.parse(raw); } catch { data = null; }
-      const reply = typeof data?.reply === "string" ? data.reply.trim() : "";
-      if (!response.ok || !reply) throw new Error(typeof data?.error === "string" ? data.error : `AI request failed (${response.status})`);
+      // /api/ai sends { text } on success and { text: fallback, error } on failure; show `text` either way.
+      const reply = typeof data?.text === "string" ? data.text.trim() : "";
+      if (!response.ok) console.error("[SahajSkill] AI request failed:", typeof data?.error === "string" ? data.error : `status ${response.status}`);
+      if (!reply) throw new Error(typeof data?.error === "string" ? data.error : `AI request failed (${response.status})`);
       setMessages((current) => [...current, { role: "assistant", content: reply }]);
     } catch (error) {
       console.error("[SahajSkill] AI request failed:", error);
